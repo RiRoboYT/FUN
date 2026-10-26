@@ -1,0 +1,13 @@
+{
+  "name": "StudyForge",
+  "short_name": "StudyForge",
+  "description": "Forge Ingots from focused study time.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#14110f",
+  "theme_color": "#14110f",
+  "icons": [
+    { "src": "icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "studyforge",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Forge Ingots from focused study time — a browser focus timer.",
+  "scripts": {
+    "test": "node --test"
+  }
+}

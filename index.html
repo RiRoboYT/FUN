@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StudyForge</title>
+  <meta name="description" content="Forge Ingots from focused study time. A focus timer for serious study sessions.">
+  <meta name="theme-color" content="#14110f">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="topbar" id="topbar">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 64 64" aria-hidden="true"><use href="#anvil"/></svg>
+      <span>StudyForge</span>
+    </div>
+    <nav class="nav" aria-label="Main">
+      <button class="nav-btn" data-view="dashboard" aria-current="page">Forge</button>
+      <button class="nav-btn" data-view="history">Session Log</button>
+      <button class="nav-btn" data-view="hall">Forge Hall</button>
+      <button class="nav-btn" data-view="settings">Settings</button>
+    </nav>
+    <div class="topstats" aria-label="Your progress">
+      <span class="chip" title="Equipped title" id="top-title">Novice Smith</span>
+      <span class="chip ingot-chip" title="Total Ingots"><i class="ingot-icon" aria-hidden="true"></i><b id="top-ingots">0</b></span>
+      <span class="chip" title="Daily streak">🔥 <b id="top-streak">0</b></span>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- ============ DASHBOARD ============ -->
+    <section class="view" id="view-dashboard" aria-labelledby="dash-h">
+      <div class="dash-grid">
+        <div class="card launcher">
+          <h1 id="dash-h" class="card-title">Light the forge</h1>
+
+          <div class="mode-tabs" role="tablist" aria-label="Session mode">
+            <button role="tab" class="mode-tab" data-mode="stopwatch" aria-selected="true">
+              <b>Stopwatch</b><small>Free Forging</small>
+            </button>
+            <button role="tab" class="mode-tab" data-mode="timer" aria-selected="false">
+              <b>Study Timer</b><small>Structured</small>
+            </button>
+            <button role="tab" class="mode-tab" data-mode="exam" aria-selected="false">
+              <b>Exam Timer</b><small>Final Forge</small>
+            </button>
+          </div>
+
+          <p class="mode-desc" id="mode-desc"></p>
+
+          <label class="field">
+            <span>Subject</span>
+            <select id="subject-select"></select>
+          </label>
+
+          <div class="mode-opts" data-for="timer" hidden>
+            <span class="field-label">Work / break</span>
+            <div class="presets" id="timer-presets">
+              <button class="preset" data-work="25" data-break="5">25 / 5</button>
+              <button class="preset" data-work="50" data-break="10">50 / 10</button>
+              <button class="preset" data-custom>Custom</button>
+            </div>
+            <div class="row" id="timer-custom" hidden>
+              <label class="field small"><span>Work (min)</span><input type="number" id="work-min" min="1" max="240" value="25"></label>
+              <label class="field small"><span>Break (min)</span><input type="number" id="break-min" min="1" max="60" value="5"></label>
+            </div>
+          </div>
+
+          <div class="mode-opts" data-for="exam" hidden>
+            <span class="field-label">Exam length</span>
+            <div class="presets" id="exam-presets">
+              <button class="preset" data-exam="30">30</button>
+              <button class="preset" data-exam="60">60</button>
+              <button class="preset" data-exam="90">90</button>
+              <button class="preset" data-exam="120">120</button>
+              <button class="preset" data-custom>Custom</button>
+            </div>
+            <div class="row" id="exam-custom" hidden>
+              <label class="field small"><span>Minutes</span><input type="number" id="exam-min" min="1" max="300" value="60"></label>
+            </div>
+            <label class="toggle">
+              <input type="checkbox" id="strict-toggle">
+              <span><b>Strict Mode</b> — leaving the tab for more than 10 seconds ends the attempt.</span>
+            </label>
+          </div>
+
+          <button class="btn btn-primary btn-big" id="start-btn">Start Forging</button>
+          <p class="hint">Tip: leaving this tab pauses nothing — you'll be asked where you went when you return.</p>
+        </div>
+
+        <div class="card smith">
+          <div class="smith-head">
+            <div class="alloy-badge" id="alloy-badge" data-alloy="bronze"><span id="alloy-name">Bronze</span></div>
+            <div>
+              <div class="smith-title" id="smith-title">Novice Smith</div>
+              <div class="muted" id="alloy-next">Next: Silver at 100 Ingots</div>
+            </div>
+          </div>
+          <div class="progress" aria-hidden="true"><div class="progress-fill" id="alloy-progress"></div></div>
+          <dl class="stat-grid">
+            <div><dt>Total Ingots</dt><dd id="stat-ingots">0</dd></div>
+            <div><dt>Streak</dt><dd id="stat-streak">0 days</dd></div>
+            <div><dt>Multiplier</dt><dd id="stat-mult">1.0x</dd></div>
+            <div><dt>Studied today</dt><dd id="stat-today">0 min</dd></div>
+          </dl>
+          <p class="muted small" id="streak-note"></p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Subject Forges <small class="muted">— this week</small></h2>
+        <div class="subject-grid" id="subject-grid"></div>
+      </div>
+
+      <div class="card">
+        <h2 class="card-title">Recent sessions</h2>
+        <div id="recent-list"></div>
+      </div>
+    </section>
+
+    <!-- ============ SESSION ============ -->
+    <section class="view session" id="view-session" hidden aria-label="Forging session" data-stage="cold">
+      <div class="session-head">
+        <span class="pill" id="sess-mode">Stopwatch</span>
+        <span class="sess-subject" id="sess-subject">Physics</span>
+        <span class="pill phase" id="sess-phase" hidden>Work</span>
+        <span class="pill strict" id="sess-strict" hidden>Strict</span>
+      </div>
+
+      <div class="timer" id="sess-timer" role="timer" aria-live="off">00:00</div>
+      <div class="timer-label" id="sess-timer-label">Ready to forge</div>
+
+      <div class="ofs-banner" id="ofs-banner" hidden>
+        <div><span class="muted">Open for Study:</span> <b id="ofs-label"></b></div>
+        <button class="btn" id="ofs-back">I'm back — resume</button>
+      </div>
+
+      <div class="counters">
+        <div class="counter c-studied"><span class="c-label">Studied</span><span class="c-val" id="cnt-studied">00:00</span></div>
+        <div class="counter c-intentional"><span class="c-label">Intentional</span><span class="c-val" id="cnt-intentional">00:00</span></div>
+        <div class="counter c-distracted"><span class="c-label">Distracted</span><span class="c-val" id="cnt-distracted">00:00</span></div>
+      </div>
+
+      <div class="forge">
+        <div class="forge-visual" aria-hidden="true">
+          <div class="embers"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="ingot-hot">
+            <svg class="cracks" viewBox="0 0 200 60" preserveAspectRatio="none">
+              <path class="crack crack-1" d="M40 0 L52 18 L46 30 L60 46 L56 60"/>
+              <path class="crack crack-2" d="M120 0 L112 14 L124 26 L116 40"/>
+              <path class="crack crack-3" d="M160 60 L150 44 L162 32 L154 20"/>
+            </svg>
+          </div>
+          <svg class="anvil" viewBox="0 0 64 64"><use href="#anvil"/></svg>
+        </div>
+        <div class="heat">
+          <div class="heat-head">
+            <span>Forge heat: <b id="heat-stage">Cold</b></span>
+            <span class="muted" id="heat-meta">1.0x · Ingots this session: 0</span>
+          </div>
+          <div class="heat-track" role="meter" aria-label="Forge heat" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="heat-meter">
+            <div class="heat-fill" id="heat-fill"></div>
+            <span class="heat-mark" style="left:5.56%" title="Warm"></span>
+            <span class="heat-mark" style="left:16.67%" title="Hot"></span>
+            <span class="heat-mark" style="left:44.44%" title="Blazing"></span>
+            <span class="heat-mark" style="left:77.78%" title="Legendary"></span>
+          </div>
+          <div class="heat-scale muted"><span>Cold</span><span>Warm</span><span>Hot</span><span>Blazing</span><span>Legendary</span></div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button class="btn btn-primary" id="ctl-toggle"><span id="ctl-toggle-text">Start</span> <kbd>Space</kbd></button>
+        <button class="btn" id="ctl-ofs">Open for Study <kbd>O</kbd></button>
+        <button class="btn" id="ctl-fs">Full screen <kbd>F</kbd></button>
+        <button class="btn btn-danger" id="ctl-stop">Stop <kbd>Esc</kbd></button>
+      </div>
+    </section>
+
+    <!-- ============ HISTORY ============ -->
+    <section class="view" id="view-history" hidden aria-labelledby="hist-h">
+      <div class="card">
+        <h1 id="hist-h" class="card-title">Session Log</h1>
+        <div class="table-wrap">
+          <table class="log">
+            <thead>
+              <tr><th>Date</th><th>Mode</th><th>Subject</th><th class="num">Studied</th><th class="num">Intentional</th><th class="num">Distracted</th><th>Peak heat</th><th class="num">Ingots</th><th>Result</th></tr>
+            </thead>
+            <tbody id="history-body"></tbody>
+          </table>
+        </div>
+        <p class="muted" id="history-empty">No sessions yet. Light the forge!</p>
+      </div>
+    </section>
+
+    <!-- ============ FORGE HALL ============ -->
+    <section class="view" id="view-hall" hidden aria-labelledby="hall-h">
+      <div class="card">
+        <h1 id="hall-h" class="card-title">Alloys</h1>
+        <div class="alloy-row" id="alloy-row"></div>
+      </div>
+      <div class="card">
+        <h2 class="card-title">Titles</h2>
+        <div class="title-list" id="title-list"></div>
+      </div>
+      <div class="card">
+        <h2 class="card-title">Achievements</h2>
+        <div class="ach-grid" id="ach-grid"></div>
+      </div>
+    </section>
+
+    <!-- ============ SETTINGS ============ -->
+    <section class="view" id="view-settings" hidden aria-labelledby="set-h">
+      <form class="card settings" id="settings-form">
+        <h1 id="set-h" class="card-title">Settings</h1>
+        <div class="row">
+          <label class="field small"><span>Default work (min)</span><input type="number" name="workMin" min="1" max="240"></label>
+          <label class="field small"><span>Default break (min)</span><input type="number" name="breakMin" min="1" max="60"></label>
+          <label class="field small"><span>Default exam (min)</span><input type="number" name="examMin" min="1" max="300"></label>
+        </div>
+        <label class="field small"><span>Minimum Studied minutes for a streak day</span><input type="number" name="streakMinMin" min="1" max="300"></label>
+        <label class="toggle"><input type="checkbox" name="strictExam"><span>Strict Mode on by default for exams</span></label>
+        <label class="toggle"><input type="checkbox" name="sound"><span>Sound effects</span></label>
+        <label class="toggle"><input type="checkbox" name="notifications"><span>Desktop notifications (when an Open for Study window or timer phase ends)</span></label>
+        <div class="row">
+          <button class="btn btn-primary" type="submit">Save settings</button>
+          <span class="muted" id="settings-saved" hidden>Saved.</span>
+        </div>
+        <hr>
+        <h2 class="card-title">Danger zone</h2>
+        <button class="btn btn-danger" type="button" id="reset-btn">Erase all StudyForge data</button>
+      </form>
+    </section>
+  </main>
+
+  <!-- ============ DIALOGS ============ -->
+  <dialog id="dlg-classify" class="dlg">
+    <form method="dialog" id="classify-form">
+      <h2>Welcome back, smith.</h2>
+      <p>You were away for <b class="away-time" id="away-time">0:00</b>. What were you doing?</p>
+      <div class="cat-grid" id="cat-grid"></div>
+      <div class="other-box" id="other-box" hidden>
+        <label class="field"><span>What was it?</span><input type="text" id="other-text" maxlength="60" placeholder="e.g. Khan Academy, calculator app"></label>
+        <div class="bucket-pick">
+          <button type="button" class="btn b-studied" data-bucket="studied">Allowed (Studied)</button>
+          <button type="button" class="btn b-intentional" data-bucket="intentional">Intentional</button>
+          <button type="button" class="btn b-distracted" data-bucket="distracted">Distracted</button>
+        </div>
+      </div>
+      <p class="muted small">Be honest — the forge only rewards real heat.</p>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-ofs" class="dlg">
+    <form method="dialog" id="ofs-form">
+      <h2>Open for Study</h2>
+      <p class="muted">Approve a window of time to use another app or site. The main timer pauses and an Intentional timer runs. Time past the window counts as Distracted.</p>
+      <label class="field"><span>Site or app</span><input type="text" id="ofs-name" maxlength="60" required placeholder="e.g. Physics Selina PDF"></label>
+      <div class="presets" id="ofs-presets">
+        <button type="button" class="preset" data-min="2">2</button>
+        <button type="button" class="preset" data-min="5">5</button>
+        <button type="button" class="preset" data-min="10">10</button>
+        <button type="button" class="preset" data-min="15">15</button>
+      </div>
+      <label class="field small"><span>Minutes</span><input type="number" id="ofs-min" min="1" max="120" value="5" required></label>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" formnovalidate>Cancel</button>
+        <button class="btn btn-primary" value="ok" id="ofs-go">Open window</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-reward" class="dlg reward">
+    <form method="dialog">
+      <div class="reward-ingot" id="reward-ingot" data-alloy="bronze"></div>
+      <h2 id="reward-title">Ingot Forged!</h2>
+      <dl class="reward-list" id="reward-list"></dl>
+      <div class="reward-extra" id="reward-extra"></div>
+      <div class="dlg-actions">
+        <button class="btn btn-primary" value="ok" autofocus>Back to the forge</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="dlg-confirm" class="dlg">
+    <form method="dialog">
+      <h2 id="confirm-title">Are you sure?</h2>
+      <p id="confirm-text"></p>
+      <div class="dlg-actions">
+        <button class="btn" value="cancel" id="confirm-cancel">Cancel</button>
+        <button class="btn btn-primary" value="ok" id="confirm-ok">OK</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="anvil" viewBox="0 0 64 64">
+      <path fill="currentColor" d="M6 20h40c0 0 12 0 14 -6h2v8c-2 6-10 8-16 8h-6c-4 0-6 3-6 6v4c0 2 2 3 4 3h4v7H14v-7h4c2 0 4-1 4-3v-4c0-3-3-6-8-6H12C8 30 6 26 6 20z"/>
+      <rect fill="currentColor" x="10" y="54" width="32" height="5" rx="1"/>
+    </symbol>
+  </svg>
+
+  <script src="js/logic.js"></script>
+  <script src="js/session.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/sound.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
