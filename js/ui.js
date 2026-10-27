@@ -227,6 +227,10 @@
     phase.classList.toggle('break', s.phase === 'break');
     $('sess-strict').hidden = !(s.mode === 'exam' && s.config.strict);
 
+    var clock = new Date();
+    $('sess-clock').textContent = clock.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
+    $('sess-clock').dateTime = clock.toISOString();
+
     $('sess-timer').textContent = L.formatClock(S.mainClockMs(s));
     $('sess-timer-label').textContent = timerLabel(s);
 

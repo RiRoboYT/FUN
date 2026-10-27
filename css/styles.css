@@ -217,6 +217,12 @@ td.s { color: var(--studied); } td.i { color: var(--intentional); } td.d { color
   min-height: calc(100vh - 56px);
   align-content: center; justify-items: center; text-align: center; gap: 22px;
 }
+.session { position: relative; }
+.wall-clock {
+  position: absolute; top: 0; right: 0;
+  font: 600 1.6rem var(--font); font-variant-numeric: tabular-nums;
+  color: var(--muted); letter-spacing: 0.02em;
+}
 .session-head { display: flex; gap: 10px; align-items: center; justify-content: center; flex-wrap: wrap; }
 .sess-subject { font: 700 1.6rem var(--serif); }
 .pill { font-size: 0.8rem; padding: 4px 12px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
