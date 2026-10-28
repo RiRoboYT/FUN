@@ -1,5 +1,5 @@
 /* StudyForge service worker — cache-first so the app works offline after the first load. */
-var CACHE = 'studyforge-v1';
+var CACHE = 'studyforge-v2-1';
 var ASSETS = [
   './',
   'index.html',
@@ -9,6 +9,8 @@ var ASSETS = [
   'js/storage.js',
   'js/sound.js',
   'js/ui.js',
+  'js/fx.js',
+  'js/radio.js',
   'js/app.js',
   'manifest.webmanifest',
   'icons/icon.svg'
@@ -21,17 +23,19 @@ self.addEventListener('install', function (e) {
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (keys) {
-    return Promise.all(keys.filter(function (k) { return k !== CACHE; }).map(function (k) { return caches.delete(k); }));
+    return Promise.all(keys.filter(function (k) { return k.indexOf('studyforge-v2') === 0 && k !== CACHE; }).map(function (k) { return caches.delete(k); }));
   }));
   self.clients.claim();
 });
 
 self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
+  // Leave other sites (e.g. YouTube) alone.
+  if (new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
-    caches.match(e.request, { ignoreSearch: true }).then(function (hit) {
+    caches.open(CACHE).then(function (c) { return c.match(e.request, { ignoreSearch: true }); }).then(function (hit) {
       var network = fetch(e.request).then(function (res) {
-        if (res.ok && new URL(e.request.url).origin === location.origin) {
+        if (res.ok) {
           var copy = res.clone();
           caches.open(CACHE).then(function (c) { c.put(e.request, copy); });
         }

@@ -250,12 +250,26 @@
 
     var toggle = $('ctl-toggle');
     toggle.hidden = s.mode === 'exam' && s.status !== 'ready';
-    $('ctl-toggle-text').textContent = s.status === 'ready' ? 'Start' : s.status === 'paused' ? 'Resume' : 'Pause';
+    var toggleText = s.status === 'ready' ? 'Start' : s.status === 'paused' ? 'Resume' : 'Pause';
+    $('ctl-toggle-text').textContent = toggleText;
+    toggle.setAttribute('aria-label', toggleText);
+    setIcon(toggle, toggleText === 'Pause' ? 'i-pause' : 'i-play');
     toggle.disabled = s.status !== 'ready' && !S.canPause(s);
+    // In a running exam there is no pause button, so Stop takes the highlighted spot.
+    $('ctl-stop').classList.toggle('is-active', toggle.hidden);
     var ofsBtn = $('ctl-ofs');
     ofsBtn.hidden = s.mode === 'exam';
     ofsBtn.disabled = !S.canOpenForStudy(s);
-    $('ctl-fs').firstChild.textContent = doc.fullscreenElement ? 'Exit full screen ' : 'Full screen ';
+    var fs = $('ctl-fs');
+    var fsText = doc.fullscreenElement ? 'Exit full screen' : 'Full screen';
+    fs.querySelector('.lbl-text').textContent = fsText;
+    fs.setAttribute('aria-label', fsText);
+    setIcon(fs, doc.fullscreenElement ? 'i-shrink' : 'i-expand');
+  }
+
+  function setIcon(btn, id) {
+    var use = btn.querySelector('.ico use');
+    if (use.getAttribute('href') !== '#' + id) use.setAttribute('href', '#' + id);
   }
 
   function resetSessionView() { lastVals = {}; }
@@ -327,7 +341,7 @@
     var f = $('settings-form');
     var st = state.settings;
     ['workMin', 'breakMin', 'examMin', 'streakMinMin'].forEach(function (k) { f.elements[k].value = st[k]; });
-    ['strictExam', 'sound', 'notifications'].forEach(function (k) { f.elements[k].checked = !!st[k]; });
+    ['strictExam', 'sound', 'notifications', 'fxCursor', 'fxSpider', 'fxRadio'].forEach(function (k) { f.elements[k].checked = !!st[k]; });
   }
 
   // ---------- Dialogs ----------

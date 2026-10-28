@@ -471,6 +471,10 @@
       st.strictExam = f.strictExam.checked;
       st.sound = f.sound.checked;
       st.notifications = f.notifications.checked;
+      st.fxCursor = f.fxCursor.checked;
+      st.fxSpider = f.fxSpider.checked;
+      st.fxRadio = f.fxRadio.checked;
+      applyEffects();
       sound.setEnabled(st.sound);
       if (st.notifications) maybeAskNotifications();
       save();
@@ -485,6 +489,8 @@
         .then(function (ok) {
           if (!ok) return;
           state = store.reset();
+          root.SF.radio.init({ settings: state.settings, save: save });
+          applyEffects();
           launch = initialLaunch();
           sound.setEnabled(true);
           ui.toast('All data erased. A fresh forge awaits.');
@@ -508,8 +514,16 @@
     });
   }
 
+  function applyEffects() {
+    var st = state.settings;
+    root.SF.fx.configure({ cursor: st.fxCursor, spider: st.fxSpider });
+    root.SF.radio.setEnabled(st.fxRadio);
+  }
+
   function boot() {
     sound.setEnabled(state.settings.sound);
+    root.SF.radio.init({ settings: state.settings, save: save });
+    applyEffects();
     wire();
     showView('dashboard');
     recoverSession();

@@ -4,9 +4,22 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v2
+
+- **Interactive cursor:** an orange dot with a ring that trails behind it and wraps itself around whatever button you hover over. It squishes when you press, and clicks throw forge sparks.
+- **Magnetic, expanding buttons:** the top navigation and session controls are icon pills. The active one shows its label, and hovering another hands the label over. Buttons lean toward the cursor, and cards glow where your mouse is.
+- **Forge Radio:** a gooey floating player in the bottom-right corner.
+  - **Ambient:** plays built-in sounds (forge fire, rain, brown noise) that work offline.
+  - **YouTube Music:** paste a YT Music or YouTube playlist, album or song link, and ⏮ ⏯ ⏭ control it.
+- **A hanging spider** that swings toward your cursor and climbs away if you get close. It hides during sessions.
+- Every effect can be switched off in **Settings → Effects**. The effects respect "reduce motion" and turn off on touch screens.
+
+**StudyForge v1 is still included, unchanged,** in the `v1/` folder. Open `v1/index.html`, or use the link in Settings. Both versions share the same saved data. It's also tagged `v1.0.0` in git.
+
 ## Running it
 
-- **Easiest:** double-click `index.html`. It runs straight from the file system.
+- **Easiest:** double-click `index.html`. It runs straight from the file system. Everything works this way except the YouTube Music player.
+- **With YouTube Music (Windows):** double-click **`Start StudyForge.bat`**. It serves the folder at `http://localhost:8642` using PowerShell, which ships with Windows, and opens your browser. YouTube's player refuses to load inside a page opened as a file. Keep the black window open while you use the app.
 - **To install it as an offline app (PWA):** serve the folder over http, for example `python3 -m http.server 8000`, open `http://localhost:8000`, then use your browser's "Install app" option. After the first load it works offline.
 
 Your data is saved in the browser's `localStorage`. It stays on that device and in that browser profile.
@@ -37,9 +50,10 @@ Your data is saved in the browser's `localStorage`. It stays on that device and 
 | `F` | Toggle full screen |
 | `O` | Open for Study |
 
-## Known limitation
+## Known limitations
 
-A normal web page **cannot block** YouTube, Instagram, Roblox or other apps. It also can't see which app you switched to. StudyForge detects when you leave the tab or window and asks you to classify that time honestly when you return. Short alt-tabs under 3 seconds are ignored.
+- YouTube Music has no public API, and a web page can't control another tab. Forge Radio can't steer a YT Music tab you already have open. It plays the music itself through YouTube's official embedded player, which needs an internet connection and the `.bat` launcher (or any web server).
+- A normal web page **cannot block** YouTube, Instagram, Roblox or other apps. It also can't see which app you switched to. StudyForge detects when you leave the tab or window and asks you to classify that time honestly when you return. Short alt-tabs under 3 seconds are ignored.
 
 ## Development
 
@@ -47,10 +61,14 @@ A normal web page **cannot block** YouTube, Instagram, Roblox or other apps. It 
 js/logic.js     pure game rules (heat, ingots, streaks, alloys, achievements)
 js/session.js   session engine (time accounting, away/return, Open for Study, phases, exam)
 js/storage.js   localStorage persistence
-js/sound.js     synthesized sound effects (WebAudio)
+js/sound.js     synthesized sound effects and ambient soundscapes (WebAudio)
 js/ui.js        rendering
 js/app.js       controller: events, keyboard, notifications, recovery
+js/fx.js        v2 cursor, magnetic buttons, hover glow, click sparks, spider
+js/radio.js     v2 Forge Radio (ambient + YouTube embedded player)
 sw.js           offline cache
+tools/serve.ps1 tiny local web server used by "Start StudyForge.bat"
+v1/             the original v1 app, unchanged
 ```
 
 Run the unit tests (Node 18+, no install needed):

@@ -27,7 +27,10 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
-  background: radial-gradient(1200px 600px at 50% -200px, #2a1a10 0%, var(--bg) 60%) fixed, var(--bg);
+  background:
+    radial-gradient(circle, rgba(255, 255, 255, 0.055) 1px, transparent 1.2px) 0 0 / 26px 26px fixed,
+    radial-gradient(1200px 600px at 50% -200px, #2a1a10 0%, var(--bg) 60%) fixed,
+    var(--bg);
   color: var(--text);
   font: 16px/1.5 var(--font);
   min-height: 100vh;
@@ -110,7 +113,7 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 24px 0; }
   transition: background 0.15s, border-color 0.15s, transform 0.05s;
 }
 .btn:hover { border-color: var(--muted); }
-.btn:active { transform: translateY(1px); }
+.btn:active { filter: brightness(0.9); }
 .btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .btn-primary { background: linear-gradient(180deg, #ff9a4d, #e2671d); border-color: #ff9a4d; color: #1a0e05; }
 .btn-primary:hover { border-color: #ffd0a8; }
@@ -397,3 +400,164 @@ td.s { color: var(--studied); } td.i { color: var(--intentional); } td.d { color
   .counters { grid-template-columns: 1fr; width: 100%; }
   .mode-tabs, .cat-grid { grid-template-columns: 1fr; }
 }
+
+
+/* =====================================================================
+   v2 — interactive cursor, expanding icon docks, Forge Radio, spider
+   ===================================================================== */
+
+/* ---------- Icon docks (top nav + session controls) ---------- */
+.ico { width: 18px; height: 18px; flex: none; }
+.dock { display: flex; gap: 10px; align-items: center; }
+.nav.dock { flex: 1; justify-content: center; }
+.dock .dock-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  height: 46px; min-width: 46px; padding: 0 14px; border-radius: 999px;
+  background: #242019; border: 1px solid var(--line); color: var(--text);
+  cursor: pointer; font-weight: 600; white-space: nowrap;
+  transition: background 0.25s, color 0.25s, border-color 0.25s, box-shadow 0.25s,
+              transform 0.35s cubic-bezier(.2, .9, .3, 1.3);
+  transform: translate(var(--mx, 0px), var(--my, 0px));
+}
+.dock .dock-btn .lbl {
+  display: inline-flex; align-items: center; gap: 6px;
+  max-width: 0; opacity: 0; margin-left: 0; overflow: hidden;
+  transition: max-width 0.4s cubic-bezier(.2, .9, .3, 1), opacity 0.25s, margin-left 0.4s;
+}
+.dock .dock-btn kbd { margin-left: 2px; }
+/* The active item shows its label; hovering another item hands the label over. */
+.dock .dock-btn.is-active .lbl,
+.dock .dock-btn[aria-current="page"] .lbl,
+.dock .dock-btn:hover .lbl,
+.dock .dock-btn:focus-visible .lbl { max-width: 190px; opacity: 1; margin-left: 9px; }
+.dock:hover .dock-btn:not(:hover) .lbl,
+.dock:has(.dock-btn:focus-visible) .dock-btn:not(:focus-visible) .lbl { max-width: 0; opacity: 0; margin-left: 0; }
+.dock .dock-btn:hover { background: #2e2821; }
+.dock .dock-btn.primary,
+.dock .nav-btn[aria-current="page"] {
+  background: linear-gradient(180deg, #ff9a4d, #e2671d); border-color: #ff9a4d; color: #1a0e05;
+}
+.dock .dock-btn.danger:hover { color: #fca5a5; border-color: #7f2a2a; background: #2a1414; }
+.dock .dock-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.dock .dock-btn:active { transform: translate(var(--mx, 0px), var(--my, 0px)) scale(0.94); }
+.dock .dock-btn[hidden] { display: none; }
+
+/* ---------- Cursor ---------- */
+.cursor-layer { position: fixed; inset: 0; pointer-events: none; z-index: 2147483647; display: none; }
+html.fx-cursor .cursor-layer { display: block; }
+html.fx-cursor, html.fx-cursor * { cursor: none !important; }
+html.fx-cursor input[type="text"], html.fx-cursor input[type="number"], html.fx-cursor select { cursor: text !important; }
+html.fx-cursor select, html.fx-cursor input[type="range"] { cursor: pointer !important; }
+.cursor-dot, .cursor-ring { position: fixed; left: 0; top: 0; will-change: transform; }
+.cursor-dot {
+  width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%;
+  background: var(--accent); box-shadow: 0 0 8px var(--accent);
+  transition: opacity 0.2s, width 0.2s, height 0.2s;
+}
+.cursor-ring {
+  border: 1.5px solid rgba(255, 138, 61, 0.75); border-radius: 50%;
+  transition: opacity 0.25s, border-color 0.25s, background-color 0.25s;
+}
+.cursor-layer.on-target .cursor-dot { opacity: 0; }
+.cursor-layer.on-target .cursor-ring { border-color: rgba(255, 138, 61, 0.9); box-shadow: 0 0 18px -6px var(--accent); }
+.cursor-layer.pressed .cursor-ring { background-color: rgba(255, 138, 61, 0.12); }
+.cursor-layer.away, .cursor-layer.on-text { opacity: 0; }
+
+/* ---------- Forge Radio (gooey player) ---------- */
+.radio { position: fixed; right: 28px; bottom: 28px; width: 190px; height: 64px; z-index: 30; }
+.radio-goo { position: absolute; inset: 0; filter: url(#goo); }
+.blob {
+  position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px;
+  border-radius: 50%; background: #2a2622;
+  transition: transform 0.55s cubic-bezier(.3, 1.6, .5, 1), background 0.3s;
+}
+.radio .b-main { width: 58px; height: 58px; margin: -29px 0 0 -29px; }
+.radio.open .b-left { transform: translateX(-44px) translateY(-5px); }
+.radio.open .b-right { transform: translateX(44px) translateY(5px); }
+.radio.open .b-main { transform: translateY(4px) scale(1.08); }
+.radio.playing .b-main { background: #3a2414; }
+.radio-btn {
+  position: absolute; top: 50%; left: 50%; width: 40px; height: 40px; margin: -20px 0 0 -20px;
+  display: grid; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--text);
+  cursor: pointer; transition: transform 0.55s cubic-bezier(.3, 1.6, .5, 1), opacity 0.25s, color 0.2s;
+}
+.radio-btn:hover { color: var(--accent-2); }
+.radio .r-prev, .radio .r-next { opacity: 0; pointer-events: none; }
+.radio.open .r-prev { opacity: 1; pointer-events: auto; transform: translateX(-46px) translateY(-5px); }
+.radio.open .r-next { opacity: 1; pointer-events: auto; transform: translateX(46px) translateY(5px); }
+.radio.open .r-toggle { transform: translateY(4px); }
+.radio.playing .r-toggle { color: var(--accent); animation: beat 1.2s ease-in-out infinite; }
+.radio-name {
+  position: absolute; right: 0; bottom: calc(100% + 6px); max-width: 260px;
+  background: var(--card-2); border: 1px solid var(--line); border-radius: 999px;
+  padding: 4px 12px; font-size: 0.8rem; color: var(--muted); cursor: pointer;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  opacity: 0; transform: translateY(6px); transition: opacity 0.25s, transform 0.25s;
+}
+.radio.open .radio-name, .radio.playing .radio-name, .radio-name[aria-expanded="true"] { opacity: 1; transform: none; }
+.radio-name:hover { color: var(--text); }
+.radio-panel {
+  position: absolute; right: 0; bottom: calc(100% + 44px); width: 340px;
+  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+}
+.radio-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 10px; }
+.radio-tab { background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 7px; cursor: pointer; font-size: 0.85rem; }
+.radio-tab[aria-selected="true"] { border-color: var(--accent); color: var(--accent-2); }
+.track-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.track-list button {
+  width: 100%; text-align: left; background: var(--bg); border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 12px; cursor: pointer;
+}
+.track-list button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent-2); }
+.radio-panel input[type="range"] { width: 100%; accent-color: var(--accent); }
+.yt-form { display: grid; gap: 8px; }
+.yt-form .field { margin: 0; }
+.yt-frame { margin-top: 10px; border-radius: 10px; overflow: hidden; aspect-ratio: 16 / 9; background: #000; display: none; }
+.yt-frame.ready { display: block; }
+.yt-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
+body.in-session .radio { bottom: 20px; right: 20px; }
+
+/* ---------- Spider ---------- */
+.spider-layer { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 5; overflow: visible; }
+.spider-thread { stroke: rgba(240, 230, 220, 0.35); stroke-width: 1; }
+.spider-body { pointer-events: auto; cursor: pointer; }
+.spider-legs path { fill: none; stroke: #ff7a1a; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.spider-layer.climbing .spider-legs { animation: scuttle 0.18s steps(2) infinite; }
+body.in-session .spider-layer { display: none; }
+
+@keyframes beat { 0%, 100% { scale: 1; } 50% { scale: 1.15; } }
+@keyframes scuttle { 0% { transform: scaleY(1); } 100% { transform: scaleY(0.82); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .spider-layer { display: none; }
+}
+@media (max-width: 900px) {
+  .nav.dock { justify-content: flex-start; flex-wrap: wrap; }
+}
+
+/* ---------- Click sparks ---------- */
+.spark {
+  position: fixed; width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px; border-radius: 50%;
+  background: #ffd27a; box-shadow: 0 0 6px #ff8a3d, 0 0 2px #fff;
+  animation: spark-fly 0.55s cubic-bezier(.15, .7, .35, 1) forwards;
+}
+@keyframes spark-fly {
+  0% { transform: translate(0, 0) scale(1.4); opacity: 1; }
+  100% { transform: translate(var(--sx), var(--sy)) scale(0.2); opacity: 0; }
+}
+
+/* ---------- Hover glow that follows the mouse ---------- */
+html.fx-glow :is(.btn, .card, .subject, .mode-tab, .cat, .preset, .dock-btn, .ach, .alloy-card, .counter) { position: relative; }
+html.fx-glow :is(.btn, .card, .subject, .mode-tab, .cat, .preset, .dock-btn, .ach, .alloy-card, .counter)::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background: radial-gradient(180px circle at var(--gx, 50%) var(--gy, 50%), rgba(255, 160, 80, 0.13), transparent 65%);
+  opacity: 0; transition: opacity 0.35s;
+}
+html.fx-glow .card::after { background: radial-gradient(420px circle at var(--gx, 50%) var(--gy, 50%), rgba(255, 140, 60, 0.06), transparent 60%); }
+html.fx-glow :is(.btn, .card, .subject, .mode-tab, .cat, .preset, .dock-btn, .ach, .alloy-card, .counter):hover::after { opacity: 1; }
+html.fx-glow .btn-primary::after, html.fx-glow .dock-btn.primary::after { background: radial-gradient(160px circle at var(--gx, 50%) var(--gy, 50%), rgba(255, 255, 255, 0.28), transparent 60%); }
+/* Buttons lift slightly into the cursor. */
+html.fx-glow :is(.subject, .mode-tab, .cat):hover { border-color: rgba(255, 138, 61, 0.55); }
+html.fx-glow :is(.btn:not(.dock-btn), .preset) { transform: translate(var(--mx, 0px), var(--my, 0px)); transition: transform 0.35s cubic-bezier(.2, .9, .3, 1.3), background 0.15s, border-color 0.15s; }
+@media (prefers-reduced-motion: reduce) { .spark { display: none; } }

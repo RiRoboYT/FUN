@@ -23,7 +23,14 @@
         strictExam: false,
         streakMinMin: 20,
         sound: true,
-        notifications: true
+        notifications: true,
+        fxCursor: true,
+        fxSpider: true,
+        fxRadio: true,
+        radioSource: 'ambient',
+        ambientTrack: 0,
+        ambientVolume: 40,
+        ytUrl: ''
       },
       active: null
     };
