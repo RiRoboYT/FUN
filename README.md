@@ -11,7 +11,6 @@ Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no depende
 - **Forge Radio:** a gooey floating player in the bottom-right corner.
   - **Ambient:** plays built-in sounds (forge fire, rain, brown noise) that work offline.
   - **YouTube Music:** paste a YT Music or YouTube playlist, album or song link, and ⏮ ⏯ ⏭ control it.
-- **A hanging spider** that swings toward your cursor and climbs away if you get close. It hides during sessions.
 - Every effect can be switched off in **Settings → Effects**. The effects respect "reduce motion" and turn off on touch screens.
 
 **StudyForge v1 is still included, unchanged,** in the `v1/` folder. Open `v1/index.html`, or use the link in Settings. Both versions share the same saved data. It's also tagged `v1.0.0` in git.
@@ -64,7 +63,7 @@ js/storage.js   localStorage persistence
 js/sound.js     synthesized sound effects and ambient soundscapes (WebAudio)
 js/ui.js        rendering
 js/app.js       controller: events, keyboard, notifications, recovery
-js/fx.js        v2 cursor, magnetic buttons, hover glow, click sparks, spider
+js/fx.js        v2 cursor, magnetic buttons, hover glow, click sparks
 js/radio.js     v2 Forge Radio (ambient + YouTube embedded player)
 sw.js           offline cache
 tools/serve.ps1 tiny local web server used by "Start StudyForge.bat"

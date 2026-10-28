@@ -229,7 +229,6 @@
         <label class="toggle"><input type="checkbox" name="notifications"><span>Desktop notifications (when an Open for Study window or timer phase ends)</span></label>
         <h2 class="card-title settings-sub">Effects</h2>
         <label class="toggle"><input type="checkbox" name="fxCursor"><span>Interactive cursor and magnetic buttons</span></label>
-        <label class="toggle"><input type="checkbox" name="fxSpider"><span>Hanging spider (hidden during sessions)</span></label>
         <label class="toggle"><input type="checkbox" name="fxRadio"><span>Forge Radio (ambient sounds and YouTube Music player)</span></label>
         <div class="row">
           <button class="btn btn-primary" type="submit">Save settings</button>
@@ -338,20 +337,6 @@
       </div>
     </div>
   </div>
-
-  <svg class="spider-layer" id="spider" aria-hidden="true" hidden>
-    <line class="spider-thread" id="spider-thread" x1="0" y1="0" x2="0" y2="0"/>
-    <g class="spider-body" id="spider-body">
-      <g class="spider-legs">
-        <path d="M-5 -2 L-14 -9 L-19 -2"/><path d="M-5 1 L-15 -2 L-21 5"/><path d="M-5 3 L-14 5 L-18 12"/><path d="M-4 5 L-11 10 L-13 17"/>
-        <path d="M5 -2 L14 -9 L19 -2"/><path d="M5 1 L15 -2 L21 5"/><path d="M5 3 L14 5 L18 12"/><path d="M4 5 L11 10 L13 17"/>
-      </g>
-      <ellipse cx="0" cy="3" rx="8" ry="8.5" fill="#ff7a1a"/>
-      <circle cx="0" cy="-6" r="4.5" fill="#ff7a1a"/>
-      <circle cx="-2.6" cy="2" r="1.8" fill="#14110f"/><circle cx="2.6" cy="2" r="1.8" fill="#14110f"/>
-      <circle cx="-2.1" cy="1.5" r="0.6" fill="#fff"/><circle cx="3.1" cy="1.5" r="0.6" fill="#fff"/>
-    </g>
-  </svg>
 
   <div class="cursor-layer" id="cursor" aria-hidden="true">
     <div class="cursor-ring" id="cursor-ring"></div>

@@ -472,7 +472,6 @@
       st.sound = f.sound.checked;
       st.notifications = f.notifications.checked;
       st.fxCursor = f.fxCursor.checked;
-      st.fxSpider = f.fxSpider.checked;
       st.fxRadio = f.fxRadio.checked;
       applyEffects();
       sound.setEnabled(st.sound);
@@ -516,7 +515,7 @@
 
   function applyEffects() {
     var st = state.settings;
-    root.SF.fx.configure({ cursor: st.fxCursor, spider: st.fxSpider });
+    root.SF.fx.configure({ cursor: st.fxCursor });
     root.SF.radio.setEnabled(st.fxRadio);
   }
 

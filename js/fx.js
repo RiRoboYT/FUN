@@ -1,4 +1,4 @@
-/* StudyForge v2 — interactive cursor, magnetic buttons, hover glow, click sparks, hanging spider.
+/* StudyForge v2 — interactive cursor, magnetic buttons, hover glow, click sparks.
    Purely visual: nothing here touches session state. */
 (function (root) {
   'use strict';
@@ -20,7 +20,7 @@
   var MAGNET_STRENGTH = 0.28;
   var MAGNET_MAX = 8;
 
-  var opts = { cursor: true, spider: true };
+  var opts = { cursor: true };
 
   // ---------- Cursor ----------
   var layer = doc.getElementById('cursor');
@@ -200,76 +200,12 @@
     }
   }
 
-  // ---------- Spider ----------
-  var spider = {
-    svg: doc.getElementById('spider'),
-    thread: doc.getElementById('spider-thread'),
-    body: doc.getElementById('spider-body'),
-    angle: 0.15, vel: 0, len: 230, baseLen: 230, t: 0, last: 0, raf: 0
-  };
-
-  function spiderVisible() {
-    return opts.spider && !reducedMotion && !doc.body.classList.contains('in-session');
-  }
-
-  // Hang in the empty margin left of the content column when there is one.
-  function spiderAnchorX() {
-    var main = doc.querySelector('main .view:not([hidden])');
-    var left = main ? main.getBoundingClientRect().left : 0;
-    return Math.round(left > 90 ? left / 2 : Math.max(40, root.innerWidth * 0.06));
-  }
-
-  function spiderFrame(now) {
-    spider.raf = 0;
-    if (!spiderVisible()) { spider.svg.toggleAttribute('hidden', true); return; }
-    spider.svg.toggleAttribute('hidden', false);
-    var dt = Math.min(0.05, (now - (spider.last || now)) / 1000) || 0.016;
-    spider.last = now;
-    spider.t += dt;
-
-    var ax = spiderAnchorX();
-    var sx = ax + Math.sin(spider.angle) * spider.len;
-    var sy = Math.cos(spider.angle) * spider.len;
-
-    // It leans toward the cursor and climbs away when the cursor gets close.
-    var dx = mouse.x - sx, dy = mouse.y - sy;
-    var near = mouse.seen && Math.sqrt(dx * dx + dy * dy) < 90;
-    var lean = mouse.seen && Math.abs(mouse.x - ax) < 420 ? Math.max(-0.45, Math.min(0.45, (mouse.x - ax) / 900)) : 0;
-    var targetLen = near ? 45 : spider.baseLen + Math.sin(spider.t * 0.9) * 10;
-    spider.len = lerp(spider.len, targetLen, near ? 0.09 : 0.02);
-    spider.svg.classList.toggle('climbing', Math.abs(spider.len - targetLen) > 4);
-
-    var gravity = 9.8 / (spider.len / 60);
-    var acc = -gravity * Math.sin(spider.angle) + 2.2 * (lean - spider.angle) - 1.4 * spider.vel;
-    spider.vel += acc * dt;
-    spider.angle += spider.vel * dt;
-
-    sx = ax + Math.sin(spider.angle) * spider.len;
-    sy = Math.cos(spider.angle) * spider.len;
-    spider.thread.setAttribute('x1', ax);
-    spider.thread.setAttribute('x2', sx.toFixed(1));
-    spider.thread.setAttribute('y2', (sy - 8).toFixed(1));
-    spider.body.setAttribute('transform', 'translate(' + sx.toFixed(1) + ' ' + sy.toFixed(1) + ') rotate(' + (-spider.angle * 57.3).toFixed(1) + ')');
-
-    spider.raf = root.requestAnimationFrame(spiderFrame);
-  }
-
-  function startSpider() {
-    if (!spider.raf && spiderVisible()) {
-      spider.last = 0;
-      spider.raf = root.requestAnimationFrame(spiderFrame);
-    } else if (!spiderVisible()) {
-      spider.svg.toggleAttribute('hidden', true);
-    }
-  }
-
   // ---------- Public ----------
   function configure(next) {
     if (next) Object.keys(next).forEach(function (k) { opts[k] = !!next[k]; });
     html.classList.toggle('fx-cursor', cursorOn());
     html.classList.toggle('fx-glow', finePointer);
     if (!cursorOn()) setMagnet(null);
-    startSpider();
   }
 
   doc.addEventListener('mousemove', onMove, { passive: true });
@@ -278,14 +214,9 @@
   doc.addEventListener('mouseout', onLeave);
   root.addEventListener('blur', onUp);
   root.addEventListener('scroll', function () { if (cursorOn() && target) kick(); }, { passive: true });
-  spider.body.addEventListener('click', function () { spider.vel += (Math.random() > 0.5 ? 1 : -1) * 2.5; });
 
   // Follow dialogs into the top layer the moment they open or close.
   new MutationObserver(placeLayer).observe(doc.body, { attributes: true, attributeFilter: ['open'], subtree: true });
-
-  // Spider shows/hides as views change (body.in-session toggles).
-  new MutationObserver(startSpider).observe(doc.body, { attributes: true, attributeFilter: ['class'] });
-  root.addEventListener('resize', startSpider);
 
   root.SF = root.SF || {};
   root.SF.fx = { configure: configure };

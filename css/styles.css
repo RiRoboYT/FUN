@@ -403,7 +403,7 @@ td.s { color: var(--studied); } td.i { color: var(--intentional); } td.d { color
 
 
 /* =====================================================================
-   v2 — interactive cursor, expanding icon docks, Forge Radio, spider
+   v2 — interactive cursor, expanding icon docks, Forge Radio
    ===================================================================== */
 
 /* ---------- Icon docks (top nav + session controls) ---------- */
@@ -518,20 +518,8 @@ html.fx-cursor select, html.fx-cursor input[type="range"] { cursor: pointer !imp
 .yt-frame iframe { width: 100%; height: 100%; border: 0; display: block; }
 body.in-session .radio { bottom: 20px; right: 20px; }
 
-/* ---------- Spider ---------- */
-.spider-layer { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 5; overflow: visible; }
-.spider-thread { stroke: rgba(240, 230, 220, 0.35); stroke-width: 1; }
-.spider-body { pointer-events: auto; cursor: pointer; }
-.spider-legs path { fill: none; stroke: #ff7a1a; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.spider-layer.climbing .spider-legs { animation: scuttle 0.18s steps(2) infinite; }
-body.in-session .spider-layer { display: none; }
-
 @keyframes beat { 0%, 100% { scale: 1; } 50% { scale: 1.15; } }
-@keyframes scuttle { 0% { transform: scaleY(1); } 100% { transform: scaleY(0.82); } }
 
-@media (prefers-reduced-motion: reduce) {
-  .spider-layer { display: none; }
-}
 @media (max-width: 900px) {
   .nav.dock { justify-content: flex-start; flex-wrap: wrap; }
 }

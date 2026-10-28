@@ -25,7 +25,6 @@
         sound: true,
         notifications: true,
         fxCursor: true,
-        fxSpider: true,
         fxRadio: true,
         radioSource: 'ambient',
         ambientTrack: 0,
