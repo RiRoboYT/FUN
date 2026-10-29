@@ -766,3 +766,80 @@ td.note-cell { max-width: 240px; overflow: hidden; text-overflow: ellipsis; colo
   .vault-panel { min-height: 0; max-height: none; }
   .vault-stage { height: 400px; contain-intrinsic-size: auto none auto 400px; }
 }
+
+/* =====================================================================
+   v2.3.1 — Vault refinement: product-shot stage, captions, editorial panel
+   ===================================================================== */
+.vault-body { grid-template-columns: minmax(0, 1fr) 340px; gap: 0; border: 1px solid #2a2622; border-radius: 16px; overflow: hidden; background: #0b0b0d; }
+.vault-stage {
+  height: 540px; border: 0; border-radius: 0; background: #0b0b0d;
+  contain-intrinsic-size: auto none auto 540px;
+}
+.vault-loading { color: #8d857c; font-size: 0.85rem; letter-spacing: 0.18em; text-transform: uppercase; }
+.vault-exit { top: 18px; left: 18px; border-radius: 999px; font-size: 0.85rem; padding: 8px 16px; background: rgba(12, 12, 14, 0.6); border-color: rgba(255, 255, 255, 0.12); }
+
+/* Captions under each piece: typographic, no boxes. */
+.vault-label {
+  display: inline-flex; align-items: baseline; gap: 8px; padding: 6px 4px;
+  background: none; border: 0; backdrop-filter: none; border-radius: 0; box-shadow: none !important;
+  transition: opacity 0.4s ease;
+}
+.vault-label .vl-dot { width: 5px; height: 5px; border-radius: 50%; background: #5a544d; align-self: center; }
+.vault-label[data-kind="forged"] .vl-dot { background: var(--metal-a); box-shadow: 0 0 8px var(--metal-a); }
+.vault-label[data-kind="next"] .vl-dot { background: #ff8a3d; box-shadow: 0 0 10px #ff8a3d; }
+.vault-label .vl-name { font: 600 0.72rem var(--font); letter-spacing: 0.32em; text-transform: uppercase; color: #cfc8bf; }
+.vault-label .vl-sub { font: 400 0.68rem var(--font); letter-spacing: 0.08em; color: #7a736b; }
+.vault-label.sel .vl-name { color: var(--metal-a); }
+.vault-label:focus-visible { outline: 1px solid var(--metal-a); outline-offset: 4px; }
+
+/* Editorial side panel. */
+.vault-panel {
+  border: 0; border-left: 1px solid #221f1c; border-radius: 0;
+  background: linear-gradient(180deg, #121113, #0d0c0e);
+  padding: 24px 26px 20px; gap: 11px; min-height: 540px; max-height: 540px;
+}
+.vp-eyebrow { font: 600 0.68rem var(--font); letter-spacing: 0.24em; text-transform: uppercase; color: #6f6860; }
+.vault-panel .vp-name {
+  margin: -4px 0 0; font: 400 2.6rem/1 var(--serif); letter-spacing: 0.01em;
+  background: linear-gradient(180deg, #fff 0%, var(--metal-a) 55%, color-mix(in srgb, var(--metal-a) 55%, #000) 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.vault-panel .vp-status { font-size: 0.78rem; letter-spacing: 0.04em; }
+.vault-panel .vp-lede { color: #a39b92; font-size: 0.92rem; margin-top: 6px; }
+.vault-panel .vp-grid { grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid #24211e; }
+.vault-panel .vp-grid > div { padding: 9px 10px 9px 0; border-bottom: 1px solid #24211e; min-width: 0; }
+.vault-panel .vp-grid dd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vault-panel .vp-grid dt { font-size: 0.66rem; letter-spacing: 0.16em; text-transform: uppercase; color: #6f6860; }
+.vault-panel .vp-grid dd { font-size: 1.05rem; font-weight: 600; color: #ece6df; margin-top: 2px; }
+.vp-hallmark { display: grid; gap: 2px; padding: 10px 14px; border: 1px solid #24211e; border-radius: 10px; background: #0f0e10; }
+.vp-hallmark span { font-size: 0.64rem; letter-spacing: 0.2em; text-transform: uppercase; color: #6f6860; }
+.vp-hallmark q { font: italic 1rem var(--serif); color: #d8d0c6; quotes: "“" "”"; }
+.vault-panel .vp-perk { font-size: 0.8rem; color: #c9a36a; letter-spacing: 0.02em; }
+.vault-panel .vp-inspect {
+  align-self: stretch; border-radius: 999px; padding: 11px 18px; font-weight: 600;
+  background: linear-gradient(180deg, #2a2622, #1d1a17); border-color: #3a342e;
+}
+.vp-note { margin: 0; font-size: 0.78rem; color: #7a736b; }
+.vault-panel .vp-reqs { gap: 16px; }
+.vault-panel .vp-reqs li { grid-template-columns: 20px 1fr; }
+.vault-panel .vp-check { width: 18px; height: 18px; font-size: 0.65rem; border-color: #34302b; }
+.vp-req-row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.86rem; color: #d8d0c6; }
+.vp-req-val { color: #7a736b; font-variant-numeric: tabular-nums; font-size: 0.8rem; }
+.vp-bar { height: 3px; border-radius: 3px; background: #24211e; overflow: hidden; margin-top: 6px; }
+.vp-bar-fill { height: 100%; background: linear-gradient(90deg, #a8572a, #ff9a4d, #ffd27a); border-radius: 3px; }
+.vp-reqs li.done .vp-bar-fill { background: linear-gradient(90deg, #2f7a4b, var(--studied)); }
+.vault-panel .vp-nav { align-items: center; padding-top: 14px; border-top: 1px solid #24211e; }
+.vp-arrow {
+  width: 38px; height: 38px; border-radius: 50%; border: 1px solid #34302b; background: transparent;
+  color: #d8d0c6; cursor: pointer; font-size: 1rem; transition: border-color 0.2s, background 0.2s;
+}
+.vp-arrow:hover:not(:disabled) { border-color: var(--metal-a); background: #1a1816; }
+.vp-arrow:disabled { opacity: 0.3; cursor: default; }
+.vp-dots { display: flex; gap: 6px; }
+.vp-dots span { width: 6px; height: 6px; border-radius: 50%; background: #34302b; transition: width 0.3s, background 0.3s; }
+.vp-dots span.on { width: 18px; border-radius: 3px; background: var(--metal-a); }
+@media (max-width: 1000px) {
+  .vault-body { grid-template-columns: 1fr; }
+  .vault-panel { border-left: 0; border-top: 1px solid #221f1c; min-height: 0; max-height: none; }
+  .vault-stage { height: 420px; contain-intrinsic-size: auto none auto 420px; }
+}

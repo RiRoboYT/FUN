@@ -1,5 +1,5 @@
 /* StudyForge service worker — cache-first so the app works offline after the first load. */
-var CACHE = 'studyforge-v2-3';
+var CACHE = 'studyforge-v2-3-1';
 var ASSETS = [
   './',
   'index.html',
@@ -12,7 +12,7 @@ var ASSETS = [
   'js/fx.js',
   'js/radio.js',
   'js/vault.js',
-  'vendor/three.min.js',
+  'vendor/vault3d.bundle.js',
   'js/app.js',
   'manifest.webmanifest',
   'icons/icon.svg'

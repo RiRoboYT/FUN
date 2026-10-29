@@ -1,9 +1,16 @@
 {
   "name": "studyforge",
-  "version": "1.0.0",
+  "version": "2.3.1",
   "private": true,
   "description": "Forge Ingots from focused study time — a browser focus timer.",
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "build:vault": "esbuild src/vault/index.js --bundle --format=iife --minify --target=es2020 --legal-comments=eof --outfile=vendor/vault3d.bundle.js"
+  },
+  "devDependencies": {
+    "esbuild": "^0.24.0",
+    "three": "^0.170.0",
+    "three-bvh-csg": "^0.0.17",
+    "three-mesh-bvh": "^0.8.3"
   }
 }

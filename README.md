@@ -4,17 +4,17 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
-## What's new in v2.3 — The Vault
+## What's new in v2.3.1 — The Vault, rebuilt
 
-The Forge Hall's alloy cards are replaced by **The Vault**, a real-time 3D showroom built with [three.js](https://threejs.org) (vendored in `vendor/`, loaded only when you open the Forge Hall).
+The Forge Hall's **Vault** is a real-time 3D product shot of your alloys, built with
+[three.js](https://threejs.org) r170 and its official post-processing add-ons.
 
-- **Forged alloys are 3D ingots** with physically based metal materials (Mythril has an iridescent sheen) on a turntable of stone pedestals, lit like a studio. A light follows your mouse, so highlights glide across the metal.
-- **The next alloy is a mould filling with molten metal**: a flowing lava surface, rising bubbles, embers and an orange glow. How full it is matches your real Ingot progress.
-- **Locked alloys** are empty stone moulds.
-- **Drag to spin** the shelf, or flick it, and it settles on the nearest pedestal. **Click an ingot to inspect it up close**: it lifts off the pedestal, and you can drag to turn it. The engraving on the back is your **hallmark**: "Forged by <your name> · <date>". Set your name in Settings.
-- **The side panel** tells the story of each alloy: how many days it took, sessions, hours studied, top subject and best streak. For locked alloys it shows a requirements checklist with progress bars, plus the title it unlocks.
-- Keyboard: focus the shelf and use ← → to browse, Enter to inspect, Esc to go back. Each alloy label is a focusable button.
-- Rendering pauses when the shelf is off-screen, the tab is hidden or you leave the Forge Hall. Without WebGL it falls back to the 2D alloy cards.
+- **A museum display:** the five alloys sit in a row on a polished black-granite slab with a brass inlay. A low camera glides along it like a jewellery product page. The selected piece is sharp and the rest fall into soft depth of field.
+- **Cast bullion bars:** rounded edges, tapered sides and a slightly settled top. Inscriptions are pressed into the metal (normal-mapped, with matte cavities): the alloy name and fineness on top, the symbol on the front, and your hallmark ("Forged by <name> · date") on the back. Surfaces have fine scratches and uneven polish. Silver is brushed (anisotropic), platinum has a lacquer coat and Mythril an iridescent film.
+- **Graphite casting moulds** for locked alloys, with the ingot's exact shape carved out using constructive solid geometry ([three-bvh-csg](https://github.com/gkjohnson/three-bvh-csg)). The next alloy's mould is filling with **molten metal**: slow convection, a cooling crust, a glowing rim where it meets the mould wall, embers, bloom and a heat-haze shimmer. How full it is matches your real Ingot progress.
+- **Studio lighting:** a light-formed reflection environment (virtual softboxes and strip lights, prefiltered with PMREM), rectangular area lights, soft contact shadows, ambient occlusion (GTAO), a faint light beam with drifting dust, and Khronos PBR Neutral tone mapping with SMAA anti-aliasing.
+- **Interaction:** drag to glide along the slab, or flick it and it settles on the nearest piece. Click a bar to lift it and turn it in your hand. Arrow keys, Enter and Esc work too, and every caption is a focusable button. The side panel tells each alloy's story (days, sessions, hours, top subject, best streak) or shows the requirements still to meet.
+- **Performance:** the bundle loads only when you open the Forge Hall. Rendering pauses when the shelf is off-screen, the tab is hidden or you leave the page. It drops to half frame rate when idle, and quality steps down automatically (high → medium → low) if frames get slow. Without WebGL 2 it falls back to the 2D alloy cards. Add `?vaultQuality=high|medium|low` to the URL to force a level.
 
 ## What's new in v2.2
 
@@ -89,11 +89,18 @@ js/ui.js        rendering
 js/app.js       controller: events, keyboard, notifications, recovery
 js/fx.js        v2 cursor, magnetic buttons, hover glow, click sparks
 js/radio.js     v2 Forge Radio (ambient + YouTube embedded player)
-js/vault.js     v2.3 The Vault: three.js scene, ingots, moulds, molten metal, inspect mode
-vendor/         three.js r158 (classic build, MIT) — see vendor/README.md
+js/vault.js     loads the Vault bundle on demand (2D fallback without WebGL 2)
+src/vault/      Vault source (ES modules): scene, geometry, procedural textures, effects, post-processing
+vendor/         vault3d.bundle.js built from src/vault with esbuild (npm run build:vault)
 sw.js           offline cache
 tools/serve.ps1 tiny local web server used by "Start StudyForge.bat"
 v1/             the original v1 app, unchanged
+```
+
+Rebuild the 3D Vault after editing `src/vault/` (needs `npm install` once):
+
+```
+npm run build:vault
 ```
 
 Run the unit tests (Node 18+, no install needed):
