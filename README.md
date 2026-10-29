@@ -4,6 +4,12 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v2.1
+
+- **Weekly Stats page:** a day-by-day chart of Studied, Intentional and Distracted time, plus totals, a daily average, your best day, a focus score and a comparison with last week. It also shows time per subject and where your distraction came from (YouTube, Instagram, …).
+- **Session notes:** jot what you covered on the reward card. Notes show in the Session Log and Recent sessions.
+- **Log study done away from the timer:** add tuition, school or other study afterwards (subject, how long, when, notes). It counts toward stats, Subject Forges and your streak, earns Ingots at the base rate, and you can delete it from the Session Log.
+
 ## What's new in v2
 
 - **Interactive cursor:** an orange dot with a ring that trails behind it and wraps itself around whatever button you hover over. It squishes when you press, and clicks throw forge sparks.

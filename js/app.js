@@ -20,6 +20,7 @@
   var lastSave = 0;
   var flashTimer = null;
   var launch = initialLaunch();
+  var statsWeek = L.weekStart(Date.now());
 
   function now() { return Date.now(); }
 
@@ -47,7 +48,7 @@
   // ---------- Views ----------
   function showView(name) {
     currentView = name;
-    ['dashboard', 'session', 'history', 'hall', 'settings'].forEach(function (v) {
+    ['dashboard', 'session', 'history', 'stats', 'hall', 'settings'].forEach(function (v) {
       $('view-' + v).hidden = v !== name;
     });
     doc.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -63,7 +64,8 @@
     var t = now();
     ui.renderTop(state, t);
     if (currentView === 'dashboard') ui.renderDashboard(state, launch, t, pickSubject);
-    else if (currentView === 'history') ui.renderHistory(state);
+    else if (currentView === 'history') ui.renderHistory(state, deleteEntry);
+    else if (currentView === 'stats') ui.renderStats(state, statsWeek, t);
     else if (currentView === 'hall') ui.renderHall(state, equipTitle);
     else if (currentView === 'settings') ui.fillSettings(state);
     else if (currentView === 'session' && s) ui.renderSession(s);
@@ -398,6 +400,70 @@
     });
   }
 
+  // ---------- Logging time done away from the timer ----------
+  function pad2(n) { return (n < 10 ? '0' : '') + n; }
+
+  function openLogDialog() {
+    var sel = $('log-subject');
+    if (!sel.options.length) {
+      L.SUBJECTS.forEach(function (name) {
+        var o = doc.createElement('option');
+        o.value = o.textContent = name;
+        sel.appendChild(o);
+      });
+    }
+    sel.value = launch.subject;
+    var d = new Date();
+    $('log-date').value = d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    $('log-time').value = pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+    $('log-note').value = '';
+    $('log-error').hidden = true;
+    $('dlg-log').showModal();
+  }
+
+  function onLogSubmit(e) {
+    if (!e.submitter || e.submitter.value !== 'ok') return;
+    var minutes = (parseInt($('log-hours').value, 10) || 0) * 60 + (parseInt($('log-mins').value, 10) || 0);
+    var date = $('log-date').value, time = $('log-time').value || '00:00';
+    var parts = date.split('-').map(Number), hm = time.split(':').map(Number);
+    var endedAt = new Date(parts[0], parts[1] - 1, parts[2], hm[0], hm[1]).getTime();
+    var error = null;
+    if (minutes < 1) error = 'Enter how long you studied.';
+    else if (minutes > 12 * 60) error = 'That is more than 12 hours — split it into separate entries.';
+    else if (!date || isNaN(endedAt)) error = 'Pick a date.';
+    else if (endedAt > Date.now() + 60000) error = 'The finish time is in the future.';
+    if (error) {
+      e.preventDefault();
+      $('log-error').textContent = error;
+      $('log-error').hidden = false;
+      return;
+    }
+    var kind = doc.querySelector('#log-kinds [aria-pressed="true"]');
+    var result = S.logManual(state, {
+      subject: $('log-subject').value,
+      kind: kind ? kind.dataset.kind : 'Other',
+      minutes: minutes,
+      endedAt: endedAt,
+      note: $('log-note').value.trim()
+    });
+    save();
+    renderView();
+    sound.play('anvil');
+    var msg = 'Logged ' + L.formatMinutes(result.record.studied) + ' of ' + result.record.subject + ' · +' + result.record.ingots + ' Ingots';
+    if (result.newAchievements.length) msg += ' · Achievement unlocked!';
+    ui.toast(msg);
+  }
+
+  function deleteEntry(r) {
+    ui.confirm('Delete this entry?', ui.modeName(r) + ' — ' + r.subject + ', ' + L.formatMinutes(r.studied) +
+      '. Its ' + r.ingots + ' Ingots will be removed too.', 'Delete').then(function (ok) {
+      if (!ok) return;
+      S.deleteManual(state, r.id);
+      save();
+      renderView();
+    });
+  }
+
   // ---------- Wiring ----------
   function wire() {
     doc.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -433,6 +499,29 @@
     numInput('exam-min', 'examMin', 300);
     $('strict-toggle').addEventListener('change', function (e) { launch.strict = e.target.checked; });
     $('start-btn').addEventListener('click', startSession);
+    $('log-btn').addEventListener('click', openLogDialog);
+    $('log-form').addEventListener('submit', onLogSubmit);
+    doc.querySelectorAll('#log-kinds .preset').forEach(function (b) {
+      b.addEventListener('click', function () {
+        doc.querySelectorAll('#log-kinds .preset').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
+      });
+    });
+    $('week-prev').addEventListener('click', function () { statsWeek = L.addDays(statsWeek, -7); renderView(); });
+    $('week-next').addEventListener('click', function () {
+      statsWeek = Math.min(L.weekStart(now()), L.addDays(statsWeek, 7));
+      renderView();
+    });
+    // Save the session note typed on the reward card.
+    $('dlg-reward').addEventListener('close', function () {
+      var id = this.dataset.recordId;
+      var note = $('reward-note').value.trim();
+      var rec = state.sessions.filter(function (r) { return r.id === id; })[0];
+      if (rec && note) {
+        rec.note = note;
+        save();
+        renderView();
+      }
+    });
 
     function control(id, fn) {
       $(id).addEventListener('click', function (e) { e.currentTarget.blur(); fn(); });

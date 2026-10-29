@@ -211,6 +211,70 @@
     return best;
   }
 
+  // Rebuild the streak from scratch, so entries logged for past days count correctly.
+  function computeStreak(sessions, minStudiedMin, todayKey) {
+    var days = {};
+    sessions.forEach(function (r) {
+      if (qualifiesForStreak(r, minStudiedMin)) days[dayKey(r.endedAt)] = true;
+    });
+    var keys = Object.keys(days).sort();
+    var best = 0, run = 0, prev = null;
+    keys.forEach(function (k) {
+      run = prev && dayDiff(prev, k) === 1 ? run + 1 : 1;
+      best = Math.max(best, run);
+      prev = k;
+    });
+    var last = keys[keys.length - 1] || null;
+    if (todayKey && last && dayDiff(last, todayKey) < 0) last = todayKey;
+    return { count: run, lastDay: last, best: best };
+  }
+
+  // Local midnight on the Monday of the week containing `ts`.
+  function weekStart(ts) {
+    var d = new Date(ts);
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    return d.getTime();
+  }
+
+  function addDays(ts, n) {
+    var d = new Date(ts);
+    d.setDate(d.getDate() + n);
+    return d.getTime();
+  }
+
+  // Totals for the 7 days starting at `startTs` (a weekStart value).
+  function weekStats(sessions, startTs) {
+    var endTs = addDays(startTs, 7);
+    var days = [];
+    for (var i = 0; i < 7; i++) {
+      var ts = addDays(startTs, i);
+      days.push({ ts: ts, key: dayKey(ts), studied: 0, intentional: 0, distracted: 0 });
+    }
+    var byKey = {};
+    days.forEach(function (d) { byKey[d.key] = d; });
+    var subjects = {}, distractions = {};
+    var totals = { studied: 0, intentional: 0, distracted: 0, sessions: 0, logged: 0 };
+    sessions.forEach(function (r) {
+      if (r.endedAt < startTs || r.endedAt >= endTs) return;
+      var d = byKey[dayKey(r.endedAt)];
+      if (!d) return;
+      d.studied += r.studied;
+      d.intentional += r.intentional;
+      d.distracted += r.distracted;
+      totals.studied += r.studied;
+      totals.intentional += r.intentional;
+      totals.distracted += r.distracted;
+      totals.sessions++;
+      if (r.mode === 'manual') totals.logged += r.studied;
+      subjects[r.subject] = (subjects[r.subject] || 0) + r.studied;
+      Object.keys(r.distractions || {}).forEach(function (k) {
+        distractions[k] = (distractions[k] || 0) + r.distractions[k];
+      });
+    });
+    return { days: days, subjects: subjects, distractions: distractions, totals: totals };
+  }
+
   function formatClock(ms) {
     var total = Math.max(0, Math.floor(ms / 1000));
     var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
@@ -253,6 +317,10 @@
     sessionIngots: sessionIngots,
     qualifiesForStreak: qualifiesForStreak,
     newAchievements: newAchievements,
+    computeStreak: computeStreak,
+    weekStart: weekStart,
+    addDays: addDays,
+    weekStats: weekStats,
     subjectTotals: subjectTotals,
     topSubject: topSubject,
     formatClock: formatClock,

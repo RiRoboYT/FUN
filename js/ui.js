@@ -22,7 +22,11 @@
     return n;
   }
 
-  var MODE_NAMES = { stopwatch: 'Stopwatch', timer: 'Study Timer', exam: 'Exam Timer' };
+  var MODE_NAMES = { stopwatch: 'Stopwatch', timer: 'Study Timer', exam: 'Exam Timer', manual: 'Logged' };
+
+  function modeName(r) {
+    return r.mode === 'manual' ? 'Logged · ' + (r.kind || 'Other') : MODE_NAMES[r.mode];
+  }
   var MODE_DESC = {
     stopwatch: 'Free Forging — unlimited time, pause whenever you need. Heat rises steadily with Studied time. Best for long revision or note-making.',
     timer: 'Structured work and break blocks that switch automatically. Finish a work block with under 10% distraction for +' + L.BLOCK_BONUS + ' bonus Ingots.',
@@ -159,10 +163,11 @@
     var wrap = el('div', { class: 'recent' });
     list.forEach(function (r) {
       wrap.appendChild(el('div', { class: 'recent-item' }, [
-        el('b', { text: r.subject + ' — ' + MODE_NAMES[r.mode] }),
+        el('b', { text: r.subject + ' — ' + modeName(r) }),
         el('span', { text: '+' + r.ingots + ' Ingots' }),
-        el('span', { class: 'meta', text: fmtDate(r.endedAt) + ' · Peak ' + L.HEAT_STAGES[r.peakStage].name }),
-        triNode(r)
+        el('span', { class: 'meta', text: fmtDate(r.endedAt) + (r.mode === 'manual' ? '' : ' · Peak ' + L.HEAT_STAGES[r.peakStage].name) }),
+        triNode(r),
+        r.note ? el('span', { class: 'recent-note', text: '📝 ' + r.note }) : null
       ]));
     });
     box.appendChild(wrap);
@@ -275,27 +280,160 @@
   function resetSessionView() { lastVals = {}; }
 
   // ---------- History ----------
-  function renderHistory(state) {
+  function renderHistory(state, onDelete) {
     var body = $('history-body');
     body.textContent = '';
     var list = state.sessions.slice().reverse();
     $('history-empty').hidden = list.length > 0;
     list.forEach(function (r) {
-      var result = r.legendary ? el('span', { class: 'tag legend', text: 'Legendary' })
+      var result = r.mode === 'manual' ? el('span', { class: 'tag logged', text: 'Logged' })
+        : r.legendary ? el('span', { class: 'tag legend', text: 'Legendary' })
         : r.completed ? el('span', { class: 'tag ok', text: 'Complete' })
         : el('span', { class: 'tag fail', text: r.failReason === 'strict' ? 'Strict fail' : 'Incomplete' });
       body.appendChild(el('tr', {}, [
         el('td', { text: fmtDate(r.endedAt) }),
-        el('td', { text: MODE_NAMES[r.mode] }),
+        el('td', { text: modeName(r) }),
         el('td', { text: r.subject }),
         el('td', { class: 'num s', text: L.formatMinutes(r.studied) }),
         el('td', { class: 'num i', text: L.formatMinutes(r.intentional) }),
         el('td', { class: 'num d', text: L.formatMinutes(r.distracted) }),
-        el('td', { text: L.HEAT_STAGES[r.peakStage].name }),
+        el('td', { text: r.mode === 'manual' ? '—' : L.HEAT_STAGES[r.peakStage].name }),
         el('td', { class: 'num', text: '+' + r.ingots }),
-        el('td', {}, [result])
+        el('td', {}, [result]),
+        el('td', { class: 'note-cell', text: r.note || '', title: r.note || '' }),
+        el('td', {}, [r.mode === 'manual'
+          ? el('button', { class: 'btn btn-danger btn-small', type: 'button', text: 'Delete', 'aria-label': 'Delete logged entry',
+              onclick: function () { onDelete(r); } })
+          : null])
       ]));
     });
+  }
+
+  // ---------- Weekly stats ----------
+  var SVG_NS = 'http://www.w3.org/2000/svg';
+  function svg(tag, attrs, text) {
+    var n = doc.createElementNS(SVG_NS, tag);
+    Object.keys(attrs || {}).forEach(function (k) { n.setAttribute(k, attrs[k]); });
+    if (text != null) n.textContent = text;
+    return n;
+  }
+
+  var DISTRACTION_NAMES = {
+    youtube: 'YouTube', instagram: 'Instagram', roblox: 'Roblox', other: 'Other sites/apps',
+    overrun: 'Open for Study overrun', unclassified: 'Left during session'
+  };
+
+  function hoursLabel(ms) {
+    var m = Math.round(ms / L.MIN);
+    if (!m) return '0m';
+    return m < 60 ? m + 'm' : Math.floor(m / 60) + 'h' + (m % 60 ? ' ' + (m % 60) + 'm' : '');
+  }
+
+  function renderChart(days, todayKey) {
+    var W = 720, H = 280, left = 44, right = 10, top = 22, bottom = 34;
+    var maxMs = Math.max(L.MIN * 60, Math.max.apply(null, days.map(function (d) {
+      return d.studied + d.intentional + d.distracted;
+    })));
+    var maxH = Math.ceil(maxMs / (60 * L.MIN));
+    var stepH = maxH > 8 ? 2 : 1;
+    maxH = Math.ceil(maxH / stepH) * stepH;
+    var plotH = H - top - bottom, plotW = W - left - right;
+    var y = function (ms) { return top + plotH - (ms / (maxH * 60 * L.MIN)) * plotH; };
+
+    var root = svg('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart-svg', role: 'img',
+      'aria-label': 'Studied, intentional and distracted time for each day of the week' });
+    for (var h = 0; h <= maxH; h += stepH) {
+      var gy = y(h * 60 * L.MIN);
+      root.appendChild(svg('line', { x1: left, x2: W - right, y1: gy, y2: gy, class: 'grid' }));
+      root.appendChild(svg('text', { x: left - 8, y: gy + 4, class: 'axis', 'text-anchor': 'end' }, h + 'h'));
+    }
+    var slot = plotW / 7, bw = Math.min(56, slot * 0.6);
+    days.forEach(function (d, i) {
+      var x = left + slot * i + (slot - bw) / 2;
+      var base = top + plotH;
+      var g = svg('g', { class: 'bar' + (d.key === todayKey ? ' today' : '') });
+      [['studied', 's'], ['intentional', 'i'], ['distracted', 'd']].forEach(function (p) {
+        var ms = d[p[0]];
+        if (!ms) return;
+        var hgt = (ms / (maxH * 60 * L.MIN)) * plotH;
+        base -= hgt;
+        g.appendChild(svg('rect', { x: x, y: base, width: bw, height: Math.max(1, hgt), rx: 3, class: 'seg ' + p[1] }));
+      });
+      var total = d.studied + d.intentional + d.distracted;
+      g.appendChild(svg('title', {}, new Date(d.ts).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) +
+        '\nStudied ' + hoursLabel(d.studied) + '\nIntentional ' + hoursLabel(d.intentional) + '\nDistracted ' + hoursLabel(d.distracted)));
+      if (total) g.appendChild(svg('text', { x: x + bw / 2, y: base - 6, class: 'val', 'text-anchor': 'middle' }, hoursLabel(d.studied)));
+      var dt = new Date(d.ts);
+      g.appendChild(svg('text', { x: x + bw / 2, y: H - 12, class: 'axis day', 'text-anchor': 'middle' },
+        dt.toLocaleDateString(undefined, { weekday: 'short' }) + ' ' + dt.getDate()));
+      root.appendChild(g);
+    });
+    return root;
+  }
+
+  function renderHBars(box, entries, cls, emptyText) {
+    box.textContent = '';
+    if (!entries.length) {
+      box.appendChild(el('p', { class: 'muted', text: emptyText }));
+      return;
+    }
+    var max = entries[0][1];
+    entries.forEach(function (e) {
+      var fill = el('div', { class: 'hbar-fill ' + cls });
+      fill.style.width = Math.max(2, e[1] / max * 100) + '%';
+      box.appendChild(el('div', { class: 'hbar' }, [
+        el('span', { class: 'hbar-name', text: e[0] }),
+        el('div', { class: 'hbar-track' }, [fill]),
+        el('span', { class: 'hbar-val', text: hoursLabel(e[1]) })
+      ]));
+    });
+  }
+
+  function sortedEntries(obj, rename) {
+    return Object.keys(obj).filter(function (k) { return obj[k] > 0; })
+      .map(function (k) { return [rename ? (rename[k] || k) : k, obj[k]]; })
+      .sort(function (a, b) { return b[1] - a[1]; });
+  }
+
+  function renderStats(state, startTs, now) {
+    var w = L.weekStats(state.sessions, startTs);
+    var prev = L.weekStats(state.sessions, L.addDays(startTs, -7));
+    var thisWeek = L.weekStart(now) === startTs;
+    var end = new Date(L.addDays(startTs, 6));
+    var fmt = { day: 'numeric', month: 'short' };
+    $('week-label').textContent = thisWeek ? 'This week' :
+      new Date(startTs).toLocaleDateString(undefined, fmt) + ' – ' + end.toLocaleDateString(undefined, fmt);
+    $('week-next').disabled = thisWeek;
+
+    var daysSoFar = thisWeek ? Math.floor((now - startTs) / 86400000) + 1 : 7;
+    var best = w.days.reduce(function (a, d) { return d.studied > a.studied ? d : a; }, w.days[0]);
+    var change = prev.totals.studied
+      ? Math.round((w.totals.studied - prev.totals.studied) / prev.totals.studied * 100) : null;
+    var t = w.totals;
+    var focus = t.studied + t.distracted ? Math.round(t.studied / (t.studied + t.distracted) * 100) : null;
+
+    var box = $('week-totals');
+    box.textContent = '';
+    [
+      ['Studied', hoursLabel(t.studied)],
+      ['Daily average', hoursLabel(t.studied / daysSoFar)],
+      ['Best day', best.studied ? new Date(best.ts).toLocaleDateString(undefined, { weekday: 'long' }) + ' · ' + hoursLabel(best.studied) : '—'],
+      ['Distracted', hoursLabel(t.distracted)],
+      ['Focus score', focus == null ? '—' : focus + '%'],
+      ['vs last week', change == null ? '—' : (change >= 0 ? '+' : '') + change + '%'],
+      ['Logged (tuition etc.)', hoursLabel(t.logged)],
+      ['Sessions', String(t.sessions)]
+    ].forEach(function (p) {
+      box.appendChild(el('div', {}, [el('dt', { text: p[0] }), el('dd', { text: p[1] })]));
+    });
+
+    var chart = $('week-chart');
+    chart.textContent = '';
+    chart.appendChild(renderChart(w.days, L.dayKey(now)));
+
+    renderHBars($('week-subjects'), sortedEntries(w.subjects), 's', 'No studying logged this week yet.');
+    renderHBars($('week-distractions'), sortedEntries(w.distractions, DISTRACTION_NAMES), 'd',
+      t.distracted ? 'Distraction from sessions before v2.1 isn\'t broken down by source.' : 'No distractions this week. 🔥');
   }
 
   // ---------- Forge Hall ----------
@@ -369,6 +507,8 @@
     else if (!r.completed) title = 'Unfinished ' + alloy.name + ' Ingot';
     else title = alloy.name + ' Ingot Forged!';
     $('reward-title').textContent = title;
+    $('reward-note').value = '';
+    $('dlg-reward').dataset.recordId = r.id;
     $('reward-ingot').dataset.alloy = alloy.id;
 
     var list = $('reward-list');
@@ -438,6 +578,8 @@
     renderSession: renderSession,
     resetSessionView: resetSessionView,
     renderHistory: renderHistory,
+    renderStats: renderStats,
+    modeName: modeName,
     renderHall: renderHall,
     fillSettings: fillSettings,
     buildCategories: buildCategories,

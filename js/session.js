@@ -385,7 +385,9 @@
       failReason: s.failReason,
       blocksDone: s.blocksDone,
       legendary: L.isLegendaryAttempt(s),
-      ingots: ingots.total
+      ingots: ingots.total,
+      distractions: distractionBreakdown(s),
+      note: ''
     };
     state.sessions.push(record);
 
@@ -404,6 +406,65 @@
       alloyAfter: alloyAfter,
       newAchievements: ach
     };
+  }
+
+  // Distracted ms per source (youtube, instagram, other, overrun…) for the stats page.
+  function distractionBreakdown(s) {
+    var out = {};
+    s.log.forEach(function (e) {
+      if (e.bucket !== 'distracted') return;
+      var key = e.kind === 'overrun' ? 'overrun' : e.category === 'other' ? 'other' : e.category;
+      out[key] = (out[key] || 0) + e.ms;
+    });
+    return out;
+  }
+
+  // A block of study done away from the timer (tuition, school, …), logged afterwards.
+  // Earns Ingots at the base rate only: there was no live forge heat.
+  function logManual(state, entry) {
+    var ms = Math.round(entry.minutes * L.MIN);
+    var ingots = Math.floor(L.ingotsFor(ms, 0));
+    var record = {
+      id: 'm' + entry.endedAt.toString(36) + Math.random().toString(36).slice(2, 6),
+      mode: 'manual',
+      kind: entry.kind,
+      subject: entry.subject,
+      startedAt: entry.endedAt - ms,
+      endedAt: entry.endedAt,
+      studied: ms,
+      intentional: 0,
+      distracted: 0,
+      peakStage: 0,
+      cracks: 0,
+      completed: true,
+      failReason: null,
+      blocksDone: 0,
+      legendary: false,
+      ingots: ingots,
+      distractions: {},
+      note: entry.note || ''
+    };
+    state.sessions.push(record);
+    state.sessions.sort(function (a, b) { return a.endedAt - b.endedAt; });
+    state.totalIngots += ingots;
+    state.streak = L.computeStreak(state.sessions, state.settings.streakMinMin);
+    var stats = statsOf(state);
+    var ach = L.newAchievements(state.achievements, {
+      session: record, stats: stats, alloyIdx: L.alloyIndex(stats)
+    }).filter(function (id) { return id === 'first_ingot' || id === 'streak_7' || id === 'mythril_smith'; });
+    ach.forEach(function (id) { state.achievements[id] = Date.now(); });
+    return { record: record, newAchievements: ach };
+  }
+
+  // Only logged entries can be deleted; timed sessions are the honest record.
+  function deleteManual(state, id) {
+    var idx = state.sessions.findIndex(function (r) { return r.id === id && r.mode === 'manual'; });
+    if (idx < 0) return false;
+    var r = state.sessions[idx];
+    state.sessions.splice(idx, 1);
+    state.totalIngots = Math.max(0, state.totalIngots - r.ingots);
+    state.streak = L.computeStreak(state.sessions, state.settings.streakMinMin);
+    return true;
   }
 
   function statsOf(state) {
@@ -438,6 +499,8 @@
     mainClockMs: mainClockMs,
     totalMs: totalMs,
     applyResult: applyResult,
+    logManual: logManual,
+    deleteManual: deleteManual,
     statsOf: statsOf
   };
 
