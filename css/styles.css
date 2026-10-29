@@ -675,3 +675,94 @@ td.note-cell { max-width: 240px; overflow: hidden; text-overflow: ellipsis; colo
   .xa { transform: translateX(-50%); }
   .xa.in { opacity: 1; }
 }
+
+/* =====================================================================
+   v2.3 — The Vault (3D alloy showroom)
+   ===================================================================== */
+[data-alloy="bronze"] { --metal-a: #e0a36a; }
+[data-alloy="silver"] { --metal-a: #e9edf2; }
+[data-alloy="gold"] { --metal-a: #ffd36b; }
+[data-alloy="platinum"] { --metal-a: #cfe0f5; }
+[data-alloy="mythril"] { --metal-a: #9eeedd; }
+
+.vault-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.vault-head .card-title { margin-bottom: 4px; }
+.vault-head p { margin: 0; max-width: 560px; }
+.vault-body { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 18px; align-items: stretch; }
+.vault .alloy-row { display: none; }
+.vault.no3d .vault-body, .vault.no3d .vault-hint { display: none; }
+.vault.no3d .alloy-row { display: grid; }
+
+.vault-stage {
+  position: relative; height: 480px; border-radius: 14px; overflow: hidden;
+  background: radial-gradient(120% 90% at 50% 0%, #2a1a10 0%, #120e0b 60%);
+  border: 1px solid var(--line);
+  content-visibility: auto;
+  contain-intrinsic-size: auto none auto 480px;
+  touch-action: pan-y;
+}
+.vault-stage:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 3px; }
+.vault-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; }
+.vault-canvas:active { cursor: grabbing; }
+.vault-loading {
+  position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted);
+  font: 600 1rem var(--font); letter-spacing: 0.04em;
+}
+.vault-loading::before {
+  content: ""; width: 54px; height: 22px; margin-bottom: 70px; position: absolute;
+  background: linear-gradient(180deg, #ffb347, #c2541d); clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.vault-exit { position: absolute; top: 14px; left: 14px; z-index: 3; background: rgba(20, 16, 13, 0.75); backdrop-filter: blur(6px); }
+
+.vault-labels { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
+.vault-label {
+  position: absolute; left: 0; top: 0; pointer-events: auto;
+  display: grid; justify-items: center; gap: 0; padding: 5px 12px; border-radius: 10px;
+  background: rgba(18, 14, 11, 0.72); border: 1px solid rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(6px); color: var(--text); cursor: pointer; white-space: nowrap;
+  transition: opacity 0.3s, border-color 0.25s, scale 0.25s;
+}
+.vault-label b { font: 700 0.9rem var(--serif); color: var(--metal-a); }
+.vault-label small { font-size: 0.7rem; color: var(--muted); }
+.vault-label.sel { border-color: color-mix(in srgb, var(--metal-a) 60%, transparent); box-shadow: 0 0 22px -8px var(--metal-a); }
+.vault-label.back { scale: 0.82; }
+.vault-label[data-kind="next"] small { color: var(--accent-2); }
+
+.vault-panel {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 18px;
+  display: flex; flex-direction: column; gap: 12px; min-height: 480px; max-height: 480px; overflow-y: auto;
+}
+.vp-head { display: flex; gap: 14px; align-items: center; }
+.vp-swatch {
+  width: 58px; height: 26px; flex: none;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--metal-a) 100%, #fff 30%), color-mix(in srgb, var(--metal-a) 55%, #000));
+  clip-path: polygon(12% 0, 88% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(0 0 10px color-mix(in srgb, var(--metal-a) 50%, transparent));
+}
+.vp-name { margin: 0; font: 700 1.5rem var(--serif); color: var(--metal-a); }
+.vp-status { font-size: 0.8rem; color: var(--muted); }
+.vp-status.forged { color: var(--studied); }
+.vp-status.next { color: var(--accent-2); }
+.vp-lede { margin: 0; color: var(--text); }
+.vp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin: 0; }
+.vp-grid dt { color: var(--muted); font-size: 0.75rem; }
+.vp-grid dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; }
+.vp-hallmark { margin: 0; font-family: var(--serif); font-style: italic; color: var(--muted); }
+.vp-perk { margin: 0; font-size: 0.85rem; color: var(--accent-2); }
+.vp-reqs { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+.vp-reqs li { display: grid; grid-template-columns: 24px 1fr; gap: 10px; align-items: start; }
+.vp-reqs li > div { display: grid; gap: 5px; }
+.vp-check { width: 22px; height: 22px; border-radius: 50%; border: 1px solid var(--line); display: grid; place-items: center; font-size: 0.75rem; }
+.vp-reqs li.done .vp-check { background: #1f4d31; border-color: #2f7a4b; color: var(--studied); }
+.vp-reqs .progress { height: 6px; }
+.vp-req-label { font-size: 0.9rem; }
+.vp-inspect { align-self: flex-start; }
+.vp-nav { margin-top: auto; display: flex; justify-content: space-between; gap: 8px; }
+.vp-nav .btn { padding: 6px 12px; font-size: 0.85rem; }
+
+@media (max-width: 1000px) {
+  .vault-body { grid-template-columns: 1fr; }
+  .vault-panel { min-height: 0; max-height: none; }
+  .vault-stage { height: 400px; contain-intrinsic-size: auto none auto 400px; }
+}

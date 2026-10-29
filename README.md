@@ -4,6 +4,18 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v2.3 — The Vault
+
+The Forge Hall's alloy cards are replaced by **The Vault**, a real-time 3D showroom built with [three.js](https://threejs.org) (vendored in `vendor/`, loaded only when you open the Forge Hall).
+
+- **Forged alloys are 3D ingots** with physically based metal materials (Mythril has an iridescent sheen) on a turntable of stone pedestals, lit like a studio. A light follows your mouse, so highlights glide across the metal.
+- **The next alloy is a mould filling with molten metal**: a flowing lava surface, rising bubbles, embers and an orange glow. How full it is matches your real Ingot progress.
+- **Locked alloys** are empty stone moulds.
+- **Drag to spin** the shelf, or flick it, and it settles on the nearest pedestal. **Click an ingot to inspect it up close**: it lifts off the pedestal, and you can drag to turn it. The engraving on the back is your **hallmark**: "Forged by <your name> · <date>". Set your name in Settings.
+- **The side panel** tells the story of each alloy: how many days it took, sessions, hours studied, top subject and best streak. For locked alloys it shows a requirements checklist with progress bars, plus the title it unlocks.
+- Keyboard: focus the shelf and use ← → to browse, Enter to inspect, Esc to go back. Each alloy label is a focusable button.
+- Rendering pauses when the shelf is off-screen, the tab is hidden or you leave the Forge Hall. Without WebGL it falls back to the 2D alloy cards.
+
 ## What's new in v2.2
 
 - **Achievement rewards:** every achievement has a tier (Common, Rare, Epic or Legendary) worth points ("G", like Xbox Gamerscore) and bonus Ingots (+5 / +15 / +30 / +60). Achievements unlocked before v2.2 are paid out automatically. Your total **Forge Score** shows in the top bar.
@@ -77,6 +89,8 @@ js/ui.js        rendering
 js/app.js       controller: events, keyboard, notifications, recovery
 js/fx.js        v2 cursor, magnetic buttons, hover glow, click sparks
 js/radio.js     v2 Forge Radio (ambient + YouTube embedded player)
+js/vault.js     v2.3 The Vault: three.js scene, ingots, moulds, molten metal, inspect mode
+vendor/         three.js r158 (classic build, MIT) — see vendor/README.md
 sw.js           offline cache
 tools/serve.ps1 tiny local web server used by "Start StudyForge.bat"
 v1/             the original v1 app, unchanged

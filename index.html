@@ -235,8 +235,23 @@
 
     <!-- ============ FORGE HALL ============ -->
     <section class="view" id="view-hall" hidden aria-labelledby="hall-h">
-      <div class="card">
-        <h1 id="hall-h" class="card-title">Alloys</h1>
+      <div class="card vault" id="vault">
+        <div class="vault-head">
+          <div>
+            <h1 id="hall-h" class="card-title">The Vault</h1>
+            <p class="muted">Every alloy you forge is cast, stamped with your hallmark and kept here. The next one is already in the mould.</p>
+          </div>
+          <span class="vault-hint muted small">Drag to spin · Click an ingot to inspect · ← → keys</span>
+        </div>
+        <div class="vault-body">
+          <div class="vault-stage" id="vault-stage" tabindex="0" role="group" aria-label="3D alloy shelf. Use the left and right arrow keys to browse, Enter to inspect.">
+            <div class="vault-labels" id="vault-labels"></div>
+            <div class="vault-loading" id="vault-loading">Lighting the forge…</div>
+            <button class="btn vault-exit" id="vault-exit" type="button" hidden>✕ Back to the shelf</button>
+          </div>
+          <aside class="vault-panel" id="vault-panel" aria-live="polite"></aside>
+        </div>
+        <!-- Shown instead of the 3D shelf when WebGL isn't available. -->
         <div class="alloy-row" id="alloy-row"></div>
       </div>
       <div class="card">
@@ -262,6 +277,7 @@
           <label class="field small"><span>Default exam (min)</span><input type="number" name="examMin" min="1" max="300"></label>
         </div>
         <label class="field small"><span>Minimum Studied minutes for a streak day</span><input type="number" name="streakMinMin" min="1" max="300"></label>
+        <label class="field small"><span>Your smith name (stamped on your ingots)</span><input type="text" name="smithName" maxlength="24" placeholder="e.g. Aarya"></label>
         <label class="toggle"><input type="checkbox" name="strictExam"><span>Strict Mode on by default for exams</span></label>
         <label class="toggle"><input type="checkbox" name="sound"><span>Sound effects</span></label>
         <label class="toggle"><input type="checkbox" name="notifications"><span>Desktop notifications (when an Open for Study window or timer phase ends)</span></label>
@@ -444,6 +460,7 @@
   <script src="js/ui.js"></script>
   <script src="js/fx.js"></script>
   <script src="js/radio.js"></script>
+  <script src="js/vault.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

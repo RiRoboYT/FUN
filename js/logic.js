@@ -324,6 +324,75 @@
     return { ids: ids, ingots: ingots, backPay: backPay };
   }
 
+  // ---------- Alloy journey (for the Vault) ----------
+  // Replays history to find when each alloy was first reached, and what it took.
+  function alloyJourney(state) {
+    var recs = state.sessions.slice().sort(function (a, b) { return a.endedAt - b.endedAt; });
+    var events = recs.map(function (r) { return { t: r.endedAt, rec: r, ingots: r.ingots || 0 }; });
+    Object.keys(state.achievements || {}).forEach(function (id) {
+      var a = achievementById(id);
+      if (a) events.push({ t: state.achievements[id], ingots: TIERS[a.tier].ingots });
+    });
+    events.sort(function (a, b) { return a.t - b.t; });
+
+    var forged = ALLOYS.map(function () { return null; });
+    forged[0] = recs.length ? recs[0].startedAt || recs[0].endedAt : null;
+    var ingots = 0, longest = 0, prefix = [], best = 0;
+    var bestAt = ALLOYS.map(function () { return 0; });
+    events.forEach(function (e) {
+      ingots += e.ingots;
+      if (e.rec) {
+        prefix.push(e.rec);
+        longest = Math.max(longest, e.rec.studied / MIN);
+        best = computeStreak(prefix, state.settings.streakMinMin).best;
+      }
+      var idx = alloyIndex({ totalIngots: ingots, longestStudiedMin: longest, bestStreak: best });
+      for (var i = 1; i <= idx; i++) {
+        if (!forged[i]) { forged[i] = e.t; bestAt[i] = best; }
+      }
+    });
+
+    return ALLOYS.map(function (a, i) {
+      if (!forged[i]) return { forgedAt: null };
+      var from = i > 0 && forged[i - 1] ? forged[i - 1] : -Infinity;
+      var to = forged[i];
+      var span = recs.filter(function (r) { return r.endedAt > from && r.endedAt <= to; });
+      var subjects = {};
+      var studied = 0;
+      span.forEach(function (r) {
+        studied += r.studied;
+        subjects[r.subject] = (subjects[r.subject] || 0) + r.studied;
+      });
+      var start = isFinite(from) ? from : (span[0] ? span[0].startedAt || span[0].endedAt : to);
+      return {
+        forgedAt: to,
+        days: i === 0 ? 0 : Math.max(1, Math.ceil((to - start) / 86400000)),
+        sessions: span.length,
+        studied: studied,
+        topSubject: topSubject(subjects),
+        bestStreak: i === 0 ? 0 : bestAt[i]
+      };
+    });
+  }
+
+  // Requirement checklist for alloy `i`, judged against the smith's current totals.
+  function alloyRequirements(state, i) {
+    var a = ALLOYS[i];
+    var t = achievementStats(state);
+    var list = [{ label: 'Forge ' + a.ingots + ' Ingots', cur: t.totalIngots, goal: a.ingots, unit: 'Ingots' }];
+    if (a.longSessionMin) list.push({ label: 'One session with ' + a.longSessionMin + '+ min Studied', cur: Math.floor(t.longestStudiedMin), goal: a.longSessionMin, unit: 'min best' });
+    if (a.streak) list.push({ label: 'Reach a ' + a.streak + '-day streak', cur: t.bestStreak, goal: a.streak, unit: 'days best' });
+    list.forEach(function (r) { r.done = r.cur >= r.goal; r.frac = Math.min(1, r.cur / r.goal); });
+    return list;
+  }
+
+  // How full the next alloy's mould is: Ingot progress from the previous alloy's threshold.
+  function mouldFill(state, i) {
+    if (i <= 0) return 1;
+    var lo = ALLOYS[i - 1].ingots, hi = ALLOYS[i].ingots;
+    return Math.max(0, Math.min(1, (state.totalIngots - lo) / (hi - lo)));
+  }
+
   function forgeScore(state) {
     return ACHIEVEMENTS.reduce(function (sum, a) {
       return sum + (state.achievements[a.id] ? TIERS[a.tier].points : 0);
@@ -457,6 +526,9 @@
     achievementStats: achievementStats,
     unlockAchievements: unlockAchievements,
     forgeScore: forgeScore,
+    alloyJourney: alloyJourney,
+    alloyRequirements: alloyRequirements,
+    mouldFill: mouldFill,
     computeStreak: computeStreak,
     weekStart: weekStart,
     addDays: addDays,

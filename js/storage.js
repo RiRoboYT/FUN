@@ -30,7 +30,8 @@
         radioSource: 'ambient',
         ambientTrack: 0,
         ambientVolume: 40,
-        ytUrl: ''
+        ytUrl: '',
+        smithName: ''
       },
       active: null
     };

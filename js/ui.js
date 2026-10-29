@@ -578,7 +578,7 @@
   function fillSettings(state) {
     var f = $('settings-form');
     var st = state.settings;
-    ['workMin', 'breakMin', 'examMin', 'streakMinMin'].forEach(function (k) { f.elements[k].value = st[k]; });
+    ['workMin', 'breakMin', 'examMin', 'streakMinMin', 'smithName'].forEach(function (k) { f.elements[k].value = st[k]; });
     ['strictExam', 'sound', 'notifications', 'fxCursor', 'fxRadio'].forEach(function (k) { f.elements[k].checked = !!st[k]; });
   }
 

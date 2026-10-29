@@ -56,6 +56,7 @@
       else b.removeAttribute('aria-current');
     });
     doc.body.classList.toggle('in-session', name === 'session');
+    root.SF.vault.setVisible(name === 'hall');
     renderView();
     root.scrollTo(0, 0);
   }
@@ -66,7 +67,10 @@
     if (currentView === 'dashboard') ui.renderDashboard(state, launch, t, pickSubject);
     else if (currentView === 'history') ui.renderHistory(state, deleteEntry);
     else if (currentView === 'stats') ui.renderStats(state, statsWeek, t);
-    else if (currentView === 'hall') ui.renderHall(state, equipTitle);
+    else if (currentView === 'hall') {
+      ui.renderHall(state, equipTitle);
+      root.SF.vault.update(state);
+    }
     else if (currentView === 'settings') ui.fillSettings(state);
     else if (currentView === 'session' && s) ui.renderSession(s);
   }
@@ -576,6 +580,7 @@
       st.strictExam = f.strictExam.checked;
       st.sound = f.sound.checked;
       st.notifications = f.notifications.checked;
+      st.smithName = f.smithName.value.trim().slice(0, 24);
       st.fxCursor = f.fxCursor.checked;
       st.fxRadio = f.fxRadio.checked;
       applyEffects();

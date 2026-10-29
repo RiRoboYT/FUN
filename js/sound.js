@@ -180,6 +180,8 @@
       playing: function () { return amb.index; }
     },
     play: function (name) {
+      // Browsers block audio until the person has interacted with the page.
+      if (navigator.userActivation && !navigator.userActivation.hasBeenActive) return;
       try { if (sounds[name]) sounds[name](); } catch (e) { /* audio is optional */ }
     },
     setEnabled: function (on) { enabled = !!on; },
