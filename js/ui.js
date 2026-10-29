@@ -58,6 +58,7 @@
     $('top-title').textContent = titleName(state.equippedTitle);
     $('top-ingots').textContent = state.totalIngots;
     $('top-streak').textContent = L.currentStreak(state.streak, L.dayKey(now));
+    $('top-score').textContent = L.forgeScore(state);
   }
 
   // ---------- Dashboard ----------
@@ -462,17 +463,116 @@
       ]));
     });
 
+    renderAchievements(state);
+  }
+
+  function progressOf(a, t) {
+    if (!a.progress) return null;
+    var p = a.progress(t);
+    var cur = Math.min(p[0], p[1]);
+    var shown = p[2] === 'h' ? cur.toFixed(1).replace(/\.0$/, '') : Math.floor(cur);
+    return { frac: cur / p[1], text: shown + ' / ' + p[1] + ' ' + p[2] };
+  }
+
+  function renderAchievements(state) {
+    var t = L.achievementStats(state);
+    var got = state.achievements;
+    var total = L.ACHIEVEMENTS.length;
+    var unlocked = L.ACHIEVEMENTS.filter(function (a) { return got[a.id]; }).length;
+    var maxScore = L.ACHIEVEMENTS.reduce(function (sum, a) { return sum + L.TIERS[a.tier].points; }, 0);
+
+    var sum = $('ach-summary');
+    sum.textContent = '';
+    var bar = el('div', { class: 'progress' }, [el('div', { class: 'progress-fill' })]);
+    bar.firstChild.style.width = (unlocked / total * 100) + '%';
+    sum.appendChild(el('div', { class: 'ach-score' }, [
+      el('b', { text: '🏆 ' + L.forgeScore(state) + 'G' }),
+      el('span', { class: 'muted', text: ' / ' + maxScore + 'G · ' + unlocked + ' of ' + total + ' unlocked' })
+    ]));
+    sum.appendChild(bar);
+
+    // Unlocked first (newest first), then locked by how close they are, secrets last.
+    var list = L.ACHIEVEMENTS.slice().sort(function (a, b) {
+      var ga = got[a.id] || 0, gb = got[b.id] || 0;
+      if (ga || gb) return gb - ga;
+      if (!!a.secret !== !!b.secret) return a.secret ? 1 : -1;
+      var pa = progressOf(a, t), pb = progressOf(b, t);
+      return (pb ? pb.frac : 0) - (pa ? pa.frac : 0);
+    });
+
     var grid = $('ach-grid');
     grid.textContent = '';
-    L.ACHIEVEMENTS.forEach(function (a) {
-      var at = state.achievements[a.id];
-      grid.appendChild(el('div', { class: 'ach' + (at ? ' got' : '') }, [
-        el('b', { text: a.name }),
-        el('span', { text: a.desc }),
-        at ? el('small', { text: 'Unlocked ' + new Date(at).toLocaleDateString() }) : null
+    list.forEach(function (a) {
+      var at = got[a.id];
+      var tier = L.TIERS[a.tier];
+      var hidden = a.secret && !at;
+      var prog = !at && !hidden ? progressOf(a, t) : null;
+      var progNode = null;
+      if (prog) {
+        var pb = el('div', { class: 'progress' }, [el('div', { class: 'progress-fill' })]);
+        pb.firstChild.style.width = (prog.frac * 100) + '%';
+        progNode = el('div', { class: 'ach-progress' }, [pb, el('small', { text: prog.text })]);
+      }
+      grid.appendChild(el('div', { class: 'ach tier-' + a.tier + (at ? ' got' : ' locked') + (hidden ? ' secret' : '') }, [
+        el('div', { class: 'ach-icon', 'aria-hidden': 'true', text: hidden ? '?' : a.icon }),
+        el('div', { class: 'ach-info' }, [
+          el('b', { text: hidden ? 'Secret achievement' : a.name }),
+          el('span', { class: 'ach-desc', text: hidden ? 'Keep forging to discover this one.' : a.desc }),
+          el('div', { class: 'ach-meta' }, [
+            el('span', { class: 'tier-tag', text: tier.name }),
+            el('span', { text: tier.points + 'G' }),
+            el('span', { text: '+' + tier.ingots + ' Ingots' })
+          ]),
+          progNode,
+          at ? el('small', { class: 'ach-date', text: 'Unlocked ' + new Date(at).toLocaleDateString() }) : null
+        ])
       ]));
     });
   }
+
+  // ---------- Xbox-style achievement pop-up ----------
+  var achQueue = [];
+  var achBusy = false;
+
+  function topHost() {
+    var open = doc.querySelectorAll('dialog[open]');
+    return open.length ? open[open.length - 1] : doc.body;
+  }
+
+  function achievementToast(id) {
+    achQueue.push(id);
+    if (!achBusy) nextAchievement();
+  }
+
+  function nextAchievement() {
+    var id = achQueue.shift();
+    if (!id) { achBusy = false; return; }
+    achBusy = true;
+    var a = L.achievementById(id);
+    var tier = L.TIERS[a.tier];
+    var node = el('div', { class: 'xa tier-' + a.tier, role: 'status', 'aria-live': 'polite' }, [
+      el('div', { class: 'xa-orb' }, [el('span', { class: 'xa-icon', text: a.icon })]),
+      el('div', { class: 'xa-body' }, [
+        el('small', { text: a.secret ? 'Secret achievement unlocked' : 'Achievement unlocked' }),
+        el('b', { text: tier.points + 'G – ' + a.name }),
+        el('span', { class: 'xa-reward', text: '+' + tier.ingots + ' Ingots' })
+      ])
+    ]);
+    topHost().appendChild(node);
+    root.SF.sound.play('achievement');
+    void node.offsetWidth;
+    node.classList.add('in');
+    setTimeout(function () { node.classList.add('open'); }, 450);
+    setTimeout(function () { node.classList.remove('open'); }, 5200);
+    setTimeout(function () { node.classList.add('out'); }, 5700);
+    setTimeout(function () { node.remove(); nextAchievement(); }, 6150);
+  }
+
+  // Keep a showing pop-up above modal dialogs as they open and close.
+  new MutationObserver(function () {
+    var node = doc.querySelector('.xa');
+    if (node && node.parentNode !== topHost()) topHost().appendChild(node);
+  }).observe(doc.body, { attributes: true, attributeFilter: ['open'], subtree: true });
 
   // ---------- Settings ----------
   function fillSettings(state) {
@@ -538,9 +638,16 @@
       extra.appendChild(el('div', { class: 'unlock', text: 'New alloy: ' + alloy.name + '! New title unlocked in the Forge Hall.' }));
     }
     result.newAchievements.forEach(function (id) {
-      var a = L.ACHIEVEMENTS.filter(function (x) { return x.id === id; })[0];
-      extra.appendChild(el('div', { class: 'unlock', text: 'Achievement: ' + a.name + ' — ' + a.desc }));
+      var a = L.achievementById(id);
+      var tier = L.TIERS[a.tier];
+      extra.appendChild(el('div', { class: 'unlock tier-' + a.tier }, [
+        el('span', { class: 'unlock-icon', text: a.icon }),
+        el('span', { text: a.name + ' — ' + tier.points + 'G · +' + tier.ingots + ' Ingots' })
+      ]));
     });
+    if (result.achievementIngots) {
+      row('Achievement rewards', '+' + result.achievementIngots, 'big');
+    }
     $('dlg-reward').showModal();
   }
 
@@ -581,6 +688,7 @@
     renderStats: renderStats,
     modeName: modeName,
     renderHall: renderHall,
+    achievementToast: achievementToast,
     fillSettings: fillSettings,
     buildCategories: buildCategories,
     showReward: showReward,

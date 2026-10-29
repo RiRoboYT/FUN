@@ -387,14 +387,15 @@
       legendary: L.isLegendaryAttempt(s),
       ingots: ingots.total,
       distractions: distractionBreakdown(s),
+      strict: s.mode === 'exam' && s.config.strict,
+      ofsOnTime: s.log.some(function (e) { return e.kind === 'ofs'; }) &&
+        !s.log.some(function (e) { return e.kind === 'overrun'; }),
       note: ''
     };
     state.sessions.push(record);
 
-    var stats = statsOf(state);
-    var alloyAfter = L.alloyIndex(stats);
-    var ach = L.newAchievements(state.achievements, { session: s, stats: stats, alloyIdx: alloyAfter });
-    ach.forEach(function (id) { state.achievements[id] = s.endedAt; });
+    var ach = L.unlockAchievements(state, s.endedAt);
+    var alloyAfter = L.alloyIndex(statsOf(state));
 
     return {
       discarded: false,
@@ -404,7 +405,8 @@
       qualifies: qualifies,
       alloyBefore: alloyBefore,
       alloyAfter: alloyAfter,
-      newAchievements: ach
+      newAchievements: ach.ids,
+      achievementIngots: ach.ingots + ach.backPay
     };
   }
 
@@ -448,12 +450,8 @@
     state.sessions.sort(function (a, b) { return a.endedAt - b.endedAt; });
     state.totalIngots += ingots;
     state.streak = L.computeStreak(state.sessions, state.settings.streakMinMin);
-    var stats = statsOf(state);
-    var ach = L.newAchievements(state.achievements, {
-      session: record, stats: stats, alloyIdx: L.alloyIndex(stats)
-    }).filter(function (id) { return id === 'first_ingot' || id === 'streak_7' || id === 'mythril_smith'; });
-    ach.forEach(function (id) { state.achievements[id] = Date.now(); });
-    return { record: record, newAchievements: ach };
+    var ach = L.unlockAchievements(state, Date.now());
+    return { record: record, newAchievements: ach.ids, achievementIngots: ach.ingots + ach.backPay };
   }
 
   // Only logged entries can be deleted; timed sessions are the honest record.

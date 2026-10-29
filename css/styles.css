@@ -600,3 +600,78 @@ td.note-cell { max-width: 240px; overflow: hidden; text-overflow: ellipsis; colo
   .stat-row { grid-template-columns: repeat(2, 1fr); }
   .stats-split { grid-template-columns: 1fr; }
 }
+
+/* =====================================================================
+   v2.2 — achievements: tiers, rewards, progress, Xbox-style pop-up
+   ===================================================================== */
+.tier-common { --tier: #d08c4e; --tier-2: #8a5226; }
+.tier-rare { --tier: #a9c6e8; --tier-2: #5a7ea6; }
+.tier-epic { --tier: #c4a6ff; --tier-2: #7651c9; }
+.tier-legendary { --tier: #ffd36b; --tier-2: #c48a12; }
+
+.score-chip b { color: var(--accent-2); }
+
+/* Forge Hall */
+.ach-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.ach-head .card-title { margin: 0; }
+.ach-summary { min-width: 280px; display: grid; gap: 8px; }
+.ach-score b { font-size: 1.2rem; color: var(--accent-2); }
+.ach-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.ach { grid-template-columns: 56px 1fr; gap: 14px; align-items: start; }
+.ach b::before, .ach.got b::before { content: none; }
+.ach-icon {
+  width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 1.6rem;
+  background: radial-gradient(circle at 35% 30%, var(--tier), var(--tier-2));
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4) inset, 0 0 18px -6px var(--tier);
+}
+.ach-info { display: grid; gap: 4px; min-width: 0; }
+.ach-desc { font-size: 0.9rem; }
+.ach-meta { display: flex; gap: 8px; flex-wrap: wrap; font-size: 0.75rem; color: var(--muted); }
+.tier-tag { color: var(--tier); border: 1px solid var(--tier-2); border-radius: 99px; padding: 0 8px; }
+.ach-progress { display: grid; gap: 4px; margin-top: 4px; }
+.ach-progress .progress { height: 6px; }
+.ach-progress small, .ach-date { color: var(--muted); font-size: 0.78rem; }
+.ach.got { border-color: color-mix(in srgb, var(--tier) 45%, var(--line)); background: linear-gradient(180deg, color-mix(in srgb, var(--tier-2) 18%, var(--bg)), var(--bg)); }
+.ach.locked .ach-icon { filter: grayscale(1) brightness(0.55); }
+.ach.locked b { color: var(--muted); }
+.ach.secret .ach-icon { background: #2a2622; color: var(--muted); font-weight: 700; box-shadow: none; filter: none; }
+
+/* Reward card unlock rows */
+.reward-extra .unlock { display: flex; align-items: center; gap: 10px; text-align: left; }
+.reward-extra .unlock.tier-common, .reward-extra .unlock.tier-rare,
+.reward-extra .unlock.tier-epic, .reward-extra .unlock.tier-legendary { border-color: var(--tier-2); }
+.unlock-icon { font-size: 1.3rem; }
+
+/* Xbox-style pop-up: an orb pops in, stretches into a pill, then shrinks away. */
+.xa {
+  position: fixed; left: 50%; bottom: 48px; z-index: 2147483646;
+  display: flex; align-items: center; height: 68px; max-width: 68px; overflow: hidden;
+  border-radius: 999px; background: linear-gradient(180deg, #2a2521, #1a1714);
+  border: 1px solid #3d342c; box-shadow: 0 18px 50px rgba(0, 0, 0, 0.6), 0 0 30px -10px var(--tier);
+  transform: translateX(-50%) scale(0); opacity: 0;
+  transition: max-width 0.55s cubic-bezier(.3, .9, .3, 1), transform 0.4s cubic-bezier(.3, 1.6, .5, 1), opacity 0.3s;
+  pointer-events: none;
+}
+.xa.in { transform: translateX(-50%) scale(1); opacity: 1; }
+.xa.open { max-width: 520px; }
+.xa.out { transform: translateX(-50%) translateY(20px) scale(0.6); opacity: 0; }
+.xa-orb {
+  flex: none; width: 66px; height: 66px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, var(--tier), var(--tier-2));
+  box-shadow: 0 0 0 3px rgba(0, 0, 0, 0.35) inset;
+}
+.xa.in .xa-orb { animation: xa-spin 0.6s cubic-bezier(.3, 1.4, .5, 1); }
+.xa-icon { font-size: 1.9rem; }
+.xa-body {
+  display: grid; gap: 1px; padding: 0 26px 0 16px; white-space: nowrap;
+  opacity: 0; transform: translateX(-10px); transition: opacity 0.3s 0.15s, transform 0.3s 0.15s;
+}
+.xa.open .xa-body { opacity: 1; transform: none; }
+.xa-body small { color: var(--muted); font-size: 0.78rem; letter-spacing: 0.02em; }
+.xa-body b { font-size: 1.05rem; color: var(--text); }
+.xa-reward { font-size: 0.8rem; color: var(--tier); font-weight: 600; }
+@keyframes xa-spin { 0% { transform: rotate(-120deg) scale(0.4); } 100% { transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .xa { transform: translateX(-50%); }
+  .xa.in { opacity: 1; }
+}

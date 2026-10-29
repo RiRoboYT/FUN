@@ -272,6 +272,7 @@
     }
     sound.play(done.failReason === 'strict' ? 'fail' : 'reward');
     ui.showReward(result, done);
+    result.newAchievements.forEach(ui.achievementToast);
   }
 
   // ---------- Return classification ----------
@@ -381,7 +382,10 @@
         var result = S.applyResult(state, r);
         save();
         renderView();
-        if (!result.discarded) ui.showReward(result, r);
+        if (!result.discarded) {
+          ui.showReward(result, r);
+          result.newAchievements.forEach(ui.achievementToast);
+        }
         return;
       }
       // Time since the last snapshot is unknown: treat it as away time and ask about it.
@@ -450,8 +454,8 @@
     renderView();
     sound.play('anvil');
     var msg = 'Logged ' + L.formatMinutes(result.record.studied) + ' of ' + result.record.subject + ' · +' + result.record.ingots + ' Ingots';
-    if (result.newAchievements.length) msg += ' · Achievement unlocked!';
     ui.toast(msg);
+    result.newAchievements.forEach(ui.achievementToast);
   }
 
   function deleteEntry(r) {
@@ -462,6 +466,17 @@
       save();
       renderView();
     });
+  }
+
+  // Unlock anything already earned (e.g. new achievements met by past sessions) and
+  // pay rewards owed for achievements unlocked before rewards existed.
+  function grantAchievements() {
+    var r = L.unlockAchievements(state, now());
+    if (!r.ids.length && !r.backPay) return;
+    save();
+    renderView();
+    if (r.backPay) ui.toast('Achievements now give rewards: +' + r.backPay + ' Ingots for the ones you already had!', 6000);
+    r.ids.forEach(ui.achievementToast);
   }
 
   // ---------- Wiring ----------
@@ -518,6 +533,7 @@
       var rec = state.sessions.filter(function (r) { return r.id === id; })[0];
       if (rec && note) {
         rec.note = note;
+        grantAchievements();
         save();
         renderView();
       }
@@ -616,6 +632,7 @@
     showView('dashboard');
     recoverSession();
     setInterval(loop, TICK_MS);
+    setTimeout(grantAchievements, 900);
     registerServiceWorker();
   }
 

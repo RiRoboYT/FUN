@@ -13,6 +13,7 @@
       streak: { count: 0, lastDay: null, best: 0 },
       sessions: [],
       achievements: {},
+      achievementsPaid: {},
       equippedTitle: 'novice',
       lastSubject: 'Physics',
       lastMode: 'stopwatch',

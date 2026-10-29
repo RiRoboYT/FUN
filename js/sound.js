@@ -44,6 +44,11 @@
     crack: function () { notes([[140, 0, 0.3], [95, 0.08, 0.35]], 'sawtooth', 0.08); },
     chime: function () { notes([[880, 0, 0.4], [1175, 0.2, 0.5], [880, 0.5, 0.4]], 'sine', 0.2); },
     reward: function () { notes([[523, 0, 0.2], [659, 0.15, 0.2], [784, 0.3, 0.2], [1047, 0.45, 0.6]], 'triangle', 0.18); },
+    // Short two-tone "bloop" with a shimmer, in the spirit of a console achievement.
+    achievement: function () {
+      notes([[784, 0, 0.12], [1175, 0.1, 0.55]], 'sine', 0.22);
+      notes([[2349, 0.12, 0.45], [3136, 0.2, 0.35]], 'triangle', 0.04);
+    },
     fail: function () { notes([[392, 0, 0.25], [311, 0.2, 0.25], [233, 0.4, 0.5]], 'sawtooth', 0.08); }
   };
 

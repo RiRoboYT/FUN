@@ -101,15 +101,26 @@ test('streak qualification uses the minimum studied setting', () => {
   assert.ok(!L.qualifiesForStreak({ completed: false, studied: 60 * MIN }, 20));
 });
 
-test('achievements unlock once', () => {
-  const ctx = {
-    session: { mode: 'stopwatch', completed: true, studied: 45 * MIN, intentional: 0, distracted: 0, peakStage: 3 },
-    stats: { totalIngots: 12, totalIntentional: 0, bestStreak: 1 },
-    alloyIdx: 0
+test('achievements unlock once and pay their reward', () => {
+  const state = {
+    totalIngots: 12, totalIntentional: 0, streak: { count: 1, lastDay: null, best: 1 },
+    achievements: {}, achievementsPaid: {},
+    sessions: [{ mode: 'stopwatch', subject: 'Physics', completed: true, studied: 45 * MIN, intentional: 0,
+      distracted: 0, peakStage: 3, cracks: 0, blocksDone: 0, startedAt: Date.UTC(2026, 4, 1, 12), endedAt: Date.UTC(2026, 4, 1, 13) }]
   };
-  const got = L.newAchievements({}, ctx);
-  assert.deepEqual(got.sort(), ['blazing_session', 'distraction_slayer', 'first_ingot', 'warm_forge']);
-  assert.deepEqual(L.newAchievements({ first_ingot: 1, warm_forge: 1, blazing_session: 1, distraction_slayer: 1 }, ctx), []);
+  const r = L.unlockAchievements(state, 1);
+  for (const id of ['first_ingot', 'warm_forge', 'blazing_session', 'distraction_slayer']) assert.ok(r.ids.includes(id), id);
+  const expected = r.ids.reduce((sum, id) => sum + L.TIERS[L.achievementById(id).tier].ingots, 0);
+  assert.equal(r.ingots, expected);
+  assert.equal(state.totalIngots, 12 + expected);
+  assert.deepEqual(L.unlockAchievements(state, 2).ids, []);
+});
+
+test('achievements unlocked before rewards existed are paid once', () => {
+  const state = { totalIngots: 0, streak: { best: 0 }, sessions: [], achievements: { first_ingot: 1 } };
+  const r = L.unlockAchievements(state, 1);
+  assert.equal(r.backPay, L.TIERS.common.ingots);
+  assert.equal(L.unlockAchievements(state, 2).backPay, 0);
 });
 
 test('top subject of the week', () => {

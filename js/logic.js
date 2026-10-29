@@ -165,33 +165,169 @@
     return !!session.completed && session.studied >= minStudiedMin * MIN;
   }
 
+  // ---------- Achievements ----------
+  // Tiers work like Xbox Gamerscore: points for bragging rights, Ingots as the reward.
+  var TIERS = {
+    common: { name: 'Common', points: 10, ingots: 5 },
+    rare: { name: 'Rare', points: 25, ingots: 15 },
+    epic: { name: 'Epic', points: 50, ingots: 30 },
+    legendary: { name: 'Legendary', points: 100, ingots: 60 }
+  };
+
+  var HOUR = 60 * MIN;
+
+  function hourOf(ts) { return new Date(ts).getHours(); }
+  function timed(r) { return r.mode !== 'manual'; }
+
+  // `session` achievements are earned by any single logged session (record).
+  // `stat` achievements are earned from lifetime totals and may show progress.
   var ACHIEVEMENTS = [
-    { id: 'first_ingot', name: 'First Ingot', desc: 'Forge your very first Ingot.',
-      check: function (c) { return c.stats.totalIngots >= 1; } },
-    { id: 'warm_forge', name: 'Warm Forge', desc: 'Heat the forge to Warm in a session.',
-      check: function (c) { return c.session.peakStage >= 1; } },
-    { id: 'blazing_session', name: 'Blazing Session', desc: '40+ min Studied with under 5 min Distracted.',
-      check: function (c) { return c.session.studied >= 40 * MIN && c.session.distracted < 5 * MIN; } },
-    { id: 'distraction_slayer', name: 'Distraction Slayer', desc: '0 Distracted minutes in a session of 25+ min.',
-      check: function (c) {
-        var s = c.session;
-        return s.studied + s.intentional + s.distracted >= 25 * MIN && s.distracted < MIN;
-      } },
-    { id: 'office_dweller', name: 'Office Dweller', desc: 'Log 60 min of Intentional time (Office / Explorer / PDF).',
-      check: function (c) { return c.stats.totalIntentional >= 60 * MIN; } },
-    { id: 'exam_warrior', name: 'Exam Warrior', desc: 'Complete an Exam Timer at Blazing heat or higher.',
-      check: function (c) { return c.session.mode === 'exam' && c.session.completed && c.session.peakStage >= 3; } },
-    { id: 'streak_7', name: '7-Day Streak', desc: 'Study 7 days in a row.',
-      check: function (c) { return c.stats.bestStreak >= 7; } },
-    { id: 'mythril_smith', name: 'Mythril Smith', desc: 'Reach the Mythril alloy.',
-      check: function (c) { return c.alloyIdx >= 4; } }
+    // Common
+    { id: 'first_ingot', name: 'First Ingot', icon: '🔨', tier: 'common', desc: 'Forge your very first Ingot.',
+      stat: function (t) { return t.totalIngots >= 1; } },
+    { id: 'warm_forge', name: 'Warm Forge', icon: '🔥', tier: 'common', desc: 'Heat the forge to Warm in a session.',
+      session: function (r) { return r.peakStage >= 1; } },
+    { id: 'exam_ready', name: 'Exam Ready', icon: '📝', tier: 'common', desc: 'Complete an Exam Timer.',
+      session: function (r) { return r.mode === 'exam' && r.completed; } },
+    { id: 'kindling', name: 'Kindling', icon: '🪵', tier: 'common', desc: 'Reach a 3-day streak.',
+      stat: function (t) { return t.bestStreak >= 3; }, progress: function (t) { return [t.bestStreak, 3, 'days']; } },
+    { id: 'field_study', name: 'Field Study', icon: '🎒', tier: 'common', desc: 'Log study you did away from the timer.',
+      stat: function (t) { return t.manualCount >= 1; } },
+    { id: 'scribe', name: 'Scribe', icon: '🪶', tier: 'common', desc: 'Write notes for 5 sessions.',
+      stat: function (t) { return t.notesCount >= 5; }, progress: function (t) { return [t.notesCount, 5, 'notes']; } },
+    { id: 'detour', name: 'Disciplined Detour', icon: '📖', tier: 'common', desc: 'Return from an Open for Study window on time.',
+      session: function (r) { return !!r.ofsOnTime; } },
+
+    // Rare
+    { id: 'blazing_session', name: 'Blazing Session', icon: '☄️', tier: 'rare', desc: '40+ min Studied with under 5 min Distracted.',
+      session: function (r) { return timed(r) && r.studied >= 40 * MIN && r.distracted < 5 * MIN; } },
+    { id: 'distraction_slayer', name: 'Distraction Slayer', icon: '⚔️', tier: 'rare', desc: '0 Distracted minutes in a session of 25+ min.',
+      session: function (r) { return timed(r) && r.studied + r.intentional + r.distracted >= 25 * MIN && r.distracted < MIN; } },
+    { id: 'office_dweller', name: 'Office Dweller', icon: '🗂️', tier: 'rare', desc: 'Log 60 min of Intentional time (Office / Explorer / PDF).',
+      stat: function (t) { return t.totalIntentional >= HOUR; }, progress: function (t) { return [t.totalIntentional / MIN, 60, 'min']; } },
+    { id: 'pomodoro_pro', name: 'Pomodoro Pro', icon: '🍅', tier: 'rare', desc: 'Finish 4 work blocks in one Study Timer session.',
+      session: function (r) { return r.mode === 'timer' && r.blocksDone >= 4; } },
+    { id: 'blue_flame', name: 'Blue Flame', icon: '💠', tier: 'rare', desc: 'Reach Legendary heat in a session.',
+      session: function (r) { return r.peakStage >= 4; } },
+    { id: 'early_bird', name: 'Early Bird', icon: '🌅', tier: 'rare', desc: 'Start a 20+ min session before 7 AM.',
+      session: function (r) { return timed(r) && r.studied >= 20 * MIN && hourOf(r.startedAt) < 7 && hourOf(r.startedAt) >= 4; } },
+    { id: 'night_owl', name: 'Night Owl', icon: '🦉', tier: 'rare', desc: 'Finish a 30+ min session after 10 PM.',
+      session: function (r) { return timed(r) && r.studied >= 30 * MIN && hourOf(r.endedAt) >= 22; } },
+    { id: 'silver_lining', name: 'Silver Lining', icon: '🥈', tier: 'rare', desc: 'Reach the Silver alloy.',
+      stat: function (t) { return t.alloyIdx >= 1; }, progress: function (t) { return [t.totalIngots, 100, 'Ingots']; } },
+    { id: 'polymath', name: 'Polymath', icon: '🧠', tier: 'rare', desc: 'Study 5 different subjects in one week.',
+      stat: function (t) { return t.maxSubjectsInWeek >= 5; }, progress: function (t) { return [t.maxSubjectsInWeek, 5, 'subjects']; } },
+    { id: 'ten_hours', name: 'Ten Hours In', icon: '⏳', tier: 'rare', desc: 'Study 10 hours in total.',
+      stat: function (t) { return t.totalStudied >= 10 * HOUR; }, progress: function (t) { return [t.totalStudied / HOUR, 10, 'h']; } },
+
+    // Epic
+    { id: 'exam_warrior', name: 'Exam Warrior', icon: '🛡️', tier: 'epic', desc: 'Complete an Exam Timer at Blazing heat or higher.',
+      session: function (r) { return r.mode === 'exam' && r.completed && r.peakStage >= 3; } },
+    { id: 'streak_7', name: '7-Day Streak', icon: '📅', tier: 'epic', desc: 'Study 7 days in a row.',
+      stat: function (t) { return t.bestStreak >= 7; }, progress: function (t) { return [t.bestStreak, 7, 'days']; } },
+    { id: 'marathon', name: 'Marathon Smith', icon: '🏃', tier: 'epic', desc: 'Study 2+ hours in a single session.',
+      session: function (r) { return timed(r) && r.studied >= 2 * HOUR; } },
+    { id: 'flawless_hour', name: 'Flawless Hour', icon: '💎', tier: 'epic', desc: '60+ min Studied with zero Distracted time.',
+      session: function (r) { return timed(r) && r.studied >= HOUR && r.distracted === 0; } },
+    { id: 'double_shift', name: 'Double Shift', icon: '⚒️', tier: 'epic', desc: 'Study 4+ hours in one day.',
+      stat: function (t) { return t.bestDay >= 4 * HOUR; }, progress: function (t) { return [t.bestDay / HOUR, 4, 'h']; } },
+    { id: 'iron_will', name: 'Iron Will', icon: '🔒', tier: 'epic', desc: 'Complete an exam in Strict Mode.',
+      session: function (r) { return r.mode === 'exam' && r.completed && !!r.strict; } },
+    { id: 'legendary_attempt', name: 'Legendary Attempt', icon: '🌟', tier: 'epic', desc: 'Finish an exam with under 1 min Distracted.',
+      session: function (r) { return !!r.legendary; } },
+    { id: 'golden_touch', name: 'Golden Touch', icon: '🥇', tier: 'epic', desc: 'Reach the Gold alloy.',
+      stat: function (t) { return t.alloyIdx >= 2; }, progress: function (t) { return [t.totalIngots, 300, 'Ingots']; } },
+    { id: 'fifty_hours', name: 'Fifty Hours', icon: '📚', tier: 'epic', desc: 'Study 50 hours in total.',
+      stat: function (t) { return t.totalStudied >= 50 * HOUR; }, progress: function (t) { return [t.totalStudied / HOUR, 50, 'h']; } },
+
+    // Legendary
+    { id: 'eternal_flame', name: 'Eternal Flame', icon: '🕯️', tier: 'legendary', desc: 'Reach a 30-day streak.',
+      stat: function (t) { return t.bestStreak >= 30; }, progress: function (t) { return [t.bestStreak, 30, 'days']; } },
+    { id: 'mythril_smith', name: 'Mythril Smith', icon: '👑', tier: 'legendary', desc: 'Reach the Mythril alloy.',
+      stat: function (t) { return t.alloyIdx >= 4; }, progress: function (t) { return [t.totalIngots, 1500, 'Ingots']; } },
+    { id: 'centurion', name: 'Centurion', icon: '🏛️', tier: 'legendary', desc: 'Study 100 hours in total.',
+      stat: function (t) { return t.totalStudied >= 100 * HOUR; }, progress: function (t) { return [t.totalStudied / HOUR, 100, 'h']; } },
+
+    // Secret — hidden in the Forge Hall until earned
+    { id: 'midnight_oil', name: 'Midnight Oil', icon: '🌙', tier: 'rare', secret: true, desc: 'Finish a 20+ min session between midnight and 4 AM.',
+      session: function (r) { return timed(r) && r.studied >= 20 * MIN && hourOf(r.endedAt) < 4; } },
+    { id: 'phoenix', name: 'Phoenix', icon: '🐦‍🔥', tier: 'epic', secret: true, desc: 'Crack your work 3 times and still finish with 45+ min Studied.',
+      session: function (r) { return timed(r) && r.cracks >= 3 && r.studied >= 45 * MIN && r.completed; } }
   ];
 
-  // Returns ids of achievements newly unlocked by this context.
-  function newAchievements(unlocked, ctx) {
-    return ACHIEVEMENTS.filter(function (a) {
-      return !unlocked[a.id] && a.check(ctx);
-    }).map(function (a) { return a.id; });
+  function achievementById(id) {
+    return ACHIEVEMENTS.filter(function (a) { return a.id === id; })[0];
+  }
+
+  // Lifetime numbers the stat achievements are judged on.
+  function achievementStats(state) {
+    var t = {
+      totalIngots: state.totalIngots,
+      totalIntentional: state.totalIntentional || 0,
+      totalStudied: 0, bestDay: 0, maxSubjectsInWeek: 0,
+      manualCount: 0, notesCount: 0, longestStudiedMin: 0,
+      bestStreak: (state.streak && state.streak.best) || 0
+    };
+    var perDay = {}, perWeek = {};
+    state.sessions.forEach(function (r) {
+      t.totalStudied += r.studied;
+      t.longestStudiedMin = Math.max(t.longestStudiedMin, r.studied / MIN);
+      if (r.mode === 'manual') t.manualCount++;
+      if (r.note) t.notesCount++;
+      var k = dayKey(r.endedAt);
+      perDay[k] = (perDay[k] || 0) + r.studied;
+      if (r.studied > 0) {
+        var w = weekStart(r.endedAt);
+        (perWeek[w] = perWeek[w] || {})[r.subject] = true;
+      }
+    });
+    Object.keys(perDay).forEach(function (k) { t.bestDay = Math.max(t.bestDay, perDay[k]); });
+    Object.keys(perWeek).forEach(function (w) {
+      t.maxSubjectsInWeek = Math.max(t.maxSubjectsInWeek, Object.keys(perWeek[w]).length);
+    });
+    t.alloyIdx = alloyIndex(t);
+    return t;
+  }
+
+  function isEarned(a, t, sessions) {
+    return a.session ? sessions.some(a.session) : a.stat(t);
+  }
+
+  // Unlocks everything newly earned, pays its Ingot reward, and pays rewards owed for
+  // achievements unlocked before rewards existed. Repeats because rewards can unlock alloys.
+  function unlockAchievements(state, now) {
+    state.achievements = state.achievements || {};
+    state.achievementsPaid = state.achievementsPaid || {};
+    var ids = [], ingots = 0, backPay = 0;
+    Object.keys(state.achievements).forEach(function (id) {
+      var a = achievementById(id);
+      if (a && !state.achievementsPaid[id]) {
+        state.achievementsPaid[id] = true;
+        backPay += TIERS[a.tier].ingots;
+      }
+    });
+    state.totalIngots += backPay;
+    for (var pass = 0; pass < 5; pass++) {
+      var t = achievementStats(state);
+      var fresh = ACHIEVEMENTS.filter(function (a) {
+        return !state.achievements[a.id] && isEarned(a, t, state.sessions);
+      });
+      if (!fresh.length) break;
+      fresh.forEach(function (a) {
+        state.achievements[a.id] = now;
+        state.achievementsPaid[a.id] = true;
+        state.totalIngots += TIERS[a.tier].ingots;
+        ingots += TIERS[a.tier].ingots;
+        ids.push(a.id);
+      });
+    }
+    return { ids: ids, ingots: ingots, backPay: backPay };
+  }
+
+  function forgeScore(state) {
+    return ACHIEVEMENTS.reduce(function (sum, a) {
+      return sum + (state.achievements[a.id] ? TIERS[a.tier].points : 0);
+    }, 0);
   }
 
   // Studied ms per subject for sessions ending at or after `sinceTs`.
@@ -316,7 +452,11 @@
     isLegendaryAttempt: isLegendaryAttempt,
     sessionIngots: sessionIngots,
     qualifiesForStreak: qualifiesForStreak,
-    newAchievements: newAchievements,
+    TIERS: TIERS,
+    achievementById: achievementById,
+    achievementStats: achievementStats,
+    unlockAchievements: unlockAchievements,
+    forgeScore: forgeScore,
     computeStreak: computeStreak,
     weekStart: weekStart,
     addDays: addDays,

@@ -4,6 +4,12 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v2.2
+
+- **Achievement rewards:** every achievement has a tier (Common, Rare, Epic or Legendary) worth points ("G", like Xbox Gamerscore) and bonus Ingots (+5 / +15 / +30 / +60). Achievements unlocked before v2.2 are paid out automatically. Your total **Forge Score** shows in the top bar.
+- **30 achievements**, including 2 secret ones that stay hidden until earned. Locked achievements show a progress bar (e.g. "3 / 7 days").
+- **Xbox-style pop-up:** when you unlock one, an orb pops up at the bottom of the screen, stretches into a pill ("Achievement unlocked · 25G – Night Owl · +15 Ingots") with a chime, then shrinks away. Several unlocks queue one after another.
+
 ## What's new in v2.1
 
 - **Weekly Stats page:** a day-by-day chart of Studied, Intentional and Distracted time, plus totals, a daily average, your best day, a focus score and a comparison with last week. It also shows time per subject and where your distraction came from (YouTube, Instagram, …).
