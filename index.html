@@ -37,9 +37,55 @@
   <main id="main">
     <!-- ============ DASHBOARD ============ -->
     <section class="view" id="view-dashboard" aria-labelledby="dash-h">
+      <div class="card hero">
+        <div class="hero-main">
+          <span class="eyebrow" id="hero-date"></span>
+          <h1 id="dash-h" class="hero-title"><span id="hero-greeting">Good day</span><em id="hero-name"></em></h1>
+          <p class="hero-sub"><span id="smith-title">Novice Smith</span><span class="dot-sep" aria-hidden="true"></span><span id="alloy-name">Bronze</span> alloy</p>
+          <dl class="hero-stats">
+            <div><dt>Studied today</dt><dd id="stat-today">0 min</dd></div>
+            <div><dt>Streak</dt><dd><span id="stat-streak">0 days</span> <small id="stat-mult">1.0x</small></dd></div>
+            <div><dt>Ingots</dt><dd id="stat-ingots">0</dd></div>
+            <div><dt>Forge Score</dt><dd id="stat-score">0G</dd></div>
+          </dl>
+          <p class="hero-note" id="streak-note"></p>
+        </div>
+        <div class="hero-alloy" id="alloy-badge" data-alloy="bronze">
+          <svg class="ingot-art" viewBox="0 0 220 150" aria-hidden="true">
+            <defs>
+              <linearGradient id="ing-top" x1="0" y1="0" x2="0.2" y2="1">
+                <stop offset="0" class="s-hi"/><stop offset="0.55" class="s-mid"/><stop offset="1" class="s-hi2"/>
+              </linearGradient>
+              <linearGradient id="ing-front" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0" class="s-mid"/><stop offset="1" class="s-lo"/>
+              </linearGradient>
+              <linearGradient id="ing-side" x1="0" y1="0" x2="1" y2="1">
+                <stop offset="0" class="s-lo"/><stop offset="1" class="s-deep"/>
+              </linearGradient>
+              <linearGradient id="ing-sheen" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="0.5" stop-color="#fff" stop-opacity="0.55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/>
+              </linearGradient>
+              <filter id="ing-blur"><feGaussianBlur stdDeviation="8"/></filter>
+            </defs>
+            <ellipse class="ing-shadow" cx="110" cy="128" rx="92" ry="11" filter="url(#ing-blur)"/>
+            <polygon class="ing-side" points="188,58 200,104 186,112 176,64"/>
+            <polygon fill="url(#ing-front)" points="22,64 176,64 186,112 12,112"/>
+            <polygon fill="url(#ing-top)" points="52,30 168,30 176,64 22,64"/>
+            <polygon fill="url(#ing-side)" points="168,30 188,58 176,64"/>
+            <polygon class="ing-sheen" fill="url(#ing-sheen)" points="52,30 168,30 176,64 22,64"/>
+            <text class="ing-mark" x="99" y="52" text-anchor="middle" id="ingot-mark">CU·SN</text>
+            <line class="ing-edge" x1="22" y1="64" x2="176" y2="64"/>
+          </svg>
+          <div class="hero-next">
+            <span id="alloy-next">Next: Silver at 100 Ingots</span>
+            <div class="progress" aria-hidden="true"><div class="progress-fill" id="alloy-progress"></div></div>
+          </div>
+        </div>
+      </div>
+
       <div class="dash-grid">
         <div class="card launcher">
-          <h1 id="dash-h" class="card-title">Light the forge</h1>
+          <h2 class="card-title">Light the forge</h2>
 
           <div class="mode-tabs" role="tablist" aria-label="Session mode">
             <button role="tab" class="mode-tab" data-mode="stopwatch" aria-selected="true">
@@ -96,22 +142,13 @@
           <p class="hint">Tip: leaving this tab pauses nothing — you'll be asked where you went when you return.</p>
         </div>
 
-        <div class="card smith">
-          <div class="smith-head">
-            <div class="alloy-badge" id="alloy-badge" data-alloy="bronze"><span id="alloy-name">Bronze</span></div>
-            <div>
-              <div class="smith-title" id="smith-title">Novice Smith</div>
-              <div class="muted" id="alloy-next">Next: Silver at 100 Ingots</div>
-            </div>
+        <div class="card week-card">
+          <div class="card-head">
+            <h2 class="card-title">This week</h2>
+            <button class="link-btn" type="button" id="open-calendar">Calendar →</button>
           </div>
-          <div class="progress" aria-hidden="true"><div class="progress-fill" id="alloy-progress"></div></div>
-          <dl class="stat-grid">
-            <div><dt>Total Ingots</dt><dd id="stat-ingots">0</dd></div>
-            <div><dt>Streak</dt><dd id="stat-streak">0 days</dd></div>
-            <div><dt>Multiplier</dt><dd id="stat-mult">1.0x</dd></div>
-            <div><dt>Studied today</dt><dd id="stat-today">0 min</dd></div>
-          </dl>
-          <p class="muted small" id="streak-note"></p>
+          <div class="week-strip" id="week-strip"></div>
+          <dl class="week-mini" id="week-mini"></dl>
         </div>
       </div>
 
@@ -201,6 +238,24 @@
 
     <!-- ============ STATS ============ -->
     <section class="view" id="view-stats" hidden aria-labelledby="stats-h">
+      <div class="card cal-card" id="calendar">
+        <div class="stats-head">
+          <h2 class="card-title">Calendar</h2>
+          <div class="week-nav">
+            <button class="btn" type="button" id="cal-prev" aria-label="Previous month">‹</button>
+            <span id="cal-label">Month</span>
+            <button class="btn" type="button" id="cal-next" aria-label="Next month">›</button>
+          </div>
+        </div>
+        <div class="cal-body">
+          <div class="cal-grid" id="cal-grid"></div>
+          <aside class="cal-side">
+            <dl class="cal-summary" id="cal-summary"></dl>
+            <div class="cal-detail" id="cal-detail" aria-live="polite"></div>
+          </aside>
+        </div>
+        <div class="cal-legend" aria-hidden="true"><span>No study</span><i style="--t:0"></i><i style="--t:0.25"></i><i style="--t:0.5"></i><i style="--t:0.75"></i><i style="--t:1"></i><span>4h+</span></div>
+      </div>
       <div class="card">
         <div class="stats-head">
           <h1 id="stats-h" class="card-title">Weekly Stats</h1>
@@ -286,6 +341,16 @@
         <div class="row">
           <button class="btn btn-primary" type="submit">Save settings</button>
           <span class="muted" id="settings-saved" hidden>Saved.</span>
+        </div>
+        <hr>
+        <h2 class="card-title" id="backup">Backup &amp; restore</h2>
+        <p class="muted">Your progress lives only in this browser. Download a backup now and then — you can restore it on any PC or browser.</p>
+        <p class="backup-status" id="backup-status">Last backup: never</p>
+        <div class="row">
+          <button class="btn btn-primary" type="button" id="backup-export">Download backup</button>
+          <button class="btn" type="button" id="backup-csv">Export history (CSV for Excel)</button>
+          <button class="btn" type="button" id="backup-import">Restore from a backup…</button>
+          <input type="file" id="backup-file" accept=".json,application/json" hidden>
         </div>
         <hr>
         <h2 class="card-title">Classic version</h2>

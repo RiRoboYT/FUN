@@ -538,6 +538,32 @@
     return t * t * (3 - 2 * t);
   }
 
+  // ---------- Calendar ----------
+  // Per-day totals keyed by local YYYY-MM-DD.
+  function dailyTotals(sessions) {
+    var days = {};
+    sessions.forEach(function (r) {
+      var k = dayKey(r.endedAt);
+      var d = days[k] || (days[k] = { studied: 0, intentional: 0, distracted: 0, sessions: [] });
+      d.studied += r.studied;
+      d.intentional += r.intentional;
+      d.distracted += r.distracted;
+      d.sessions.push(r);
+    });
+    return days;
+  }
+
+  // How brightly a day glows: 0 for no study, rising quickly for the first hour and
+  // reaching full white heat at 4 hours.
+  var DAY_FULL_MS = 4 * 60 * MIN;
+  function dayGlow(studiedMs) {
+    if (studiedMs <= 0) return 0;
+    return Math.min(1, Math.pow(studiedMs / DAY_FULL_MS, 0.65));
+  }
+  function dayColor(t) {
+    return heatColor(480 + t * 1020);
+  }
+
   function formatClock(ms) {
     var total = Math.max(0, Math.floor(ms / 1000));
     var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
@@ -599,6 +625,9 @@
     tempFromHeat: tempFromHeat,
     blackbody: blackbody,
     heatColor: heatColor,
+    dailyTotals: dailyTotals,
+    dayGlow: dayGlow,
+    dayColor: dayColor,
     glowAmount: glowAmount,
     formatMinutes: formatMinutes
   };

@@ -21,6 +21,8 @@
   var flashTimer = null;
   var launch = initialLaunch();
   var statsWeek = L.weekStart(Date.now());
+  var calMonth = Date.now();
+  var calSelected = null;
 
   function now() { return Date.now(); }
 
@@ -67,12 +69,18 @@
     ui.renderTop(state, t);
     if (currentView === 'dashboard') ui.renderDashboard(state, launch, t, pickSubject);
     else if (currentView === 'history') ui.renderHistory(state, deleteEntry);
-    else if (currentView === 'stats') ui.renderStats(state, statsWeek, t);
+    else if (currentView === 'stats') {
+      ui.renderCalendar(state, calMonth, calSelected, t, function (key) {
+        calSelected = calSelected === key ? null : key;
+        renderView();
+      });
+      ui.renderStats(state, statsWeek, t);
+    }
     else if (currentView === 'hall') {
       ui.renderHall(state, equipTitle);
       root.SF.vault.update(state);
     }
-    else if (currentView === 'settings') ui.fillSettings(state);
+    else if (currentView === 'settings') { ui.fillSettings(state); renderBackupStatus(); }
     else if (currentView === 'session' && s) ui.renderSession(s);
   }
 
@@ -484,6 +492,112 @@
     r.ids.forEach(ui.achievementToast);
   }
 
+  // ---------- Backup & restore ----------
+  function stamp(ts) {
+    var d = new Date(ts);
+    return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
+  }
+
+  function download(name, text, type) {
+    var blob = new Blob([text], { type: type });
+    var url = URL.createObjectURL(blob);
+    var a = doc.createElement('a');
+    a.href = url;
+    a.download = name;
+    doc.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+  }
+
+  function exportBackup() {
+    var data = JSON.parse(JSON.stringify(state));
+    data.active = null;
+    var payload = { app: 'StudyForge', format: 1, exportedAt: now(), data: data };
+    download('StudyForge-backup-' + stamp(now()) + '.json', JSON.stringify(payload, null, 2), 'application/json');
+    state.lastBackupAt = now();
+    save();
+    renderBackupStatus();
+    ui.toast('Backup downloaded — keep it somewhere safe (Google Drive works well).', 5000);
+  }
+
+  function csvCell(v) {
+    var str = v == null ? '' : String(v);
+    return /[",\n]/.test(str) ? '"' + str.replace(/"/g, '""') + '"' : str;
+  }
+
+  function exportCsv() {
+    var mins = function (ms) { return Math.round(ms / L.MIN); };
+    var rows = [['Date', 'Start', 'End', 'Mode', 'Subject', 'Studied (min)', 'Intentional (min)', 'Distracted (min)', 'Peak heat', 'Ingots', 'Result', 'Notes']];
+    state.sessions.slice().sort(function (a, b) { return a.endedAt - b.endedAt; }).forEach(function (r) {
+      var start = new Date(r.startedAt || r.endedAt), end = new Date(r.endedAt);
+      rows.push([
+        stamp(r.endedAt),
+        start.toTimeString().slice(0, 5), end.toTimeString().slice(0, 5),
+        ui.modeName(r), r.subject, mins(r.studied), mins(r.intentional), mins(r.distracted),
+        r.mode === 'manual' ? '' : L.HEAT_STAGES[r.peakStage].name, r.ingots,
+        r.mode === 'manual' ? 'Logged' : r.legendary ? 'Legendary' : r.completed ? 'Complete' : 'Incomplete',
+        r.note || ''
+      ]);
+    });
+    // BOM so Excel opens it as UTF-8.
+    download('StudyForge-history-' + stamp(now()) + '.csv', '\ufeff' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n'), 'text/csv');
+  }
+
+  function importBackup(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var payload;
+      try { payload = JSON.parse(reader.result); } catch (e) { payload = null; }
+      var data = payload && payload.app === 'StudyForge' && payload.data;
+      if (!data || !Array.isArray(data.sessions) || typeof data.totalIngots !== 'number') {
+        ui.toast('That file isn\'t a StudyForge backup.', 5000);
+        return;
+      }
+      if (s) {
+        ui.toast('Finish your current session before restoring a backup.', 5000);
+        return;
+      }
+      var when = payload.exportedAt ? new Date(payload.exportedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : 'an unknown date';
+      ui.confirm('Restore this backup?',
+        'Backup from ' + when + ': ' + data.sessions.length + ' sessions, ' + data.totalIngots + ' Ingots. ' +
+        'It will replace what is in this browser now (' + state.sessions.length + ' sessions, ' + state.totalIngots + ' Ingots).',
+        'Restore').then(function (ok) {
+        if (!ok) return;
+        data.active = null;
+        state = store.migrate(data);
+        state.lastBackupAt = payload.exportedAt || now();
+        save();
+        launch = initialLaunch();
+        root.SF.radio.init({ settings: state.settings, save: save });
+        applyEffects();
+        renderView();
+        ui.toast('Backup restored. Welcome back, smith.', 5000);
+      });
+    };
+    reader.readAsText(file);
+  }
+
+  function renderBackupStatus() {
+    var el = $('backup-status');
+    if (!el) return;
+    if (!state.lastBackupAt) { el.textContent = 'Last backup: never'; el.classList.add('stale'); return; }
+    var days = Math.floor((now() - state.lastBackupAt) / 86400000);
+    el.textContent = 'Last backup: ' + (days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago');
+    el.classList.toggle('stale', days > 14);
+  }
+
+  // A gentle nudge, at most once a week, once there's something worth protecting.
+  function maybeNudgeBackup() {
+    if (state.sessions.length < 3) return;
+    var last = state.lastBackupAt || 0;
+    if (now() - last < 14 * 86400000) return;
+    if (state.backupNudgeAt && now() - state.backupNudgeAt < 7 * 86400000) return;
+    state.backupNudgeAt = now();
+    save();
+    ui.toast('Your progress lives only in this browser. Back it up in Settings → Backup.', 7000);
+  }
+
   // ---------- Wiring ----------
   function wire() {
     doc.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -526,6 +640,22 @@
         doc.querySelectorAll('#log-kinds .preset').forEach(function (x) { x.setAttribute('aria-pressed', String(x === b)); });
       });
     });
+    $('cal-prev').addEventListener('click', function () {
+      var d = new Date(calMonth); d.setDate(1); d.setMonth(d.getMonth() - 1); calMonth = d.getTime(); calSelected = null; renderView();
+    });
+    $('cal-next').addEventListener('click', function () {
+      var d = new Date(calMonth); d.setDate(1); d.setMonth(d.getMonth() + 1);
+      if (d.getTime() <= now()) { calMonth = d.getTime(); calSelected = null; renderView(); }
+    });
+    $('open-calendar').addEventListener('click', function () {
+      calMonth = now();
+      showView('stats');
+      $('calendar').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    $('backup-export').addEventListener('click', exportBackup);
+    $('backup-csv').addEventListener('click', exportCsv);
+    $('backup-import').addEventListener('click', function () { $('backup-file').value = ''; $('backup-file').click(); });
+    $('backup-file').addEventListener('change', function (e) { if (e.target.files[0]) importBackup(e.target.files[0]); });
     $('week-prev').addEventListener('click', function () { statsWeek = L.addDays(statsWeek, -7); renderView(); });
     $('week-next').addEventListener('click', function () {
       statsWeek = Math.min(L.weekStart(now()), L.addDays(statsWeek, 7));
@@ -641,6 +771,7 @@
     recoverSession();
     setInterval(loop, TICK_MS);
     setTimeout(grantAchievements, 900);
+    setTimeout(maybeNudgeBackup, 4000);
     registerServiceWorker();
   }
 

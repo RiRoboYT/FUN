@@ -78,5 +78,5 @@
   }
 
   root.SF = root.SF || {};
-  root.SF.storage = { load: load, save: save, reset: reset, defaults: defaults };
+  root.SF.storage = { load: load, save: save, reset: reset, defaults: defaults, migrate: migrate, KEY: KEY };
 })(window);

@@ -115,7 +115,15 @@
       $('alloy-next').textContent = 'You have reached the highest alloy.';
       $('alloy-progress').style.width = '100%';
     }
-    $('stat-ingots').textContent = state.totalIngots;
+    $('stat-ingots').textContent = state.totalIngots.toLocaleString();
+    $('stat-score').textContent = L.forgeScore(state) + 'G';
+    $('ingot-mark').textContent = INGOT_MARKS[alloy.id];
+    var d = new Date(now);
+    var hr = d.getHours();
+    $('hero-date').textContent = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    $('hero-greeting').textContent = hr < 5 ? 'Burning the midnight oil' : hr < 12 ? 'Good morning' : hr < 17 ? 'Good afternoon' : 'Good evening';
+    var name = (state.settings.smithName || '').trim();
+    $('hero-name').textContent = name ? ', ' + name : '';
     $('stat-streak').textContent = streak + (streak === 1 ? ' day' : ' days');
     $('stat-mult').textContent = L.streakMultiplier(streak).toFixed(1) + 'x';
     $('stat-today').textContent = L.formatMinutes(studiedToday(state, now));
@@ -124,6 +132,122 @@
     $('streak-note').textContent = todayDone
       ? 'Today counts toward your streak. Keep the fire burning tomorrow.'
       : 'Finish a session with ' + state.settings.streakMinMin + '+ min Studied today to ' + (streak ? 'keep' : 'start') + ' your streak.';
+  }
+
+  var INGOT_MARKS = { bronze: 'CU · SN', silver: 'AG 999', gold: 'AU 999.9', platinum: 'PT 950', mythril: 'MI ∞' };
+
+  function rgb(arr) { return arr.map(function (v) { return Math.round(v * 255); }).join(','); }
+
+  // A day tile that glows hotter the more was studied that day.
+  function glowTile(tile, studiedMs) {
+    var t = L.dayGlow(studiedMs);
+    tile.style.setProperty('--t', t.toFixed(3));
+    tile.style.setProperty('--c', rgb(L.dayColor(t)));
+    tile.classList.toggle('lit', t > 0);
+  }
+
+  function renderWeek(state, now) {
+    var days = L.dailyTotals(state.sessions);
+    var strip = $('week-strip');
+    strip.textContent = '';
+    var total = 0, studiedDays = 0, best = 0;
+    for (var i = 6; i >= 0; i--) {
+      var ts = L.addDays(now, -i);
+      var key = L.dayKey(ts);
+      var ms = days[key] ? days[key].studied : 0;
+      total += ms;
+      if (ms > 0) studiedDays++;
+      best = Math.max(best, ms);
+      var dt = new Date(ts);
+      var tile = el('div', { class: 'wk-day' + (i === 0 ? ' today' : ''), title: dt.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }) + ' · ' + L.formatMinutes(ms) }, [
+        el('span', { class: 'wk-name', text: dt.toLocaleDateString(undefined, { weekday: 'short' }) }),
+        el('span', { class: 'wk-tile' }, [el('b', { text: String(dt.getDate()) })]),
+        el('span', { class: 'wk-min', text: ms ? L.formatMinutes(ms) : '—' })
+      ]);
+      glowTile(tile.querySelector('.wk-tile'), ms);
+      strip.appendChild(tile);
+    }
+    var mini = $('week-mini');
+    mini.textContent = '';
+    [['Last 7 days', L.formatMinutes(total)], ['Days studied', studiedDays + ' / 7'], ['Best day', best ? L.formatMinutes(best) : '—']].forEach(function (p) {
+      mini.appendChild(el('div', {}, [el('dt', { text: p[0] }), el('dd', { text: p[1] })]));
+    });
+  }
+
+  // ---------- Calendar ----------
+  function renderCalendar(state, monthTs, selectedKey, now, onPick) {
+    var days = L.dailyTotals(state.sessions);
+    var first = new Date(monthTs);
+    first.setDate(1);
+    first.setHours(0, 0, 0, 0);
+    var year = first.getFullYear(), month = first.getMonth();
+    var daysInMonth = new Date(year, month + 1, 0).getDate();
+    var lead = (first.getDay() + 6) % 7; // Monday first
+    var todayKey = L.dayKey(now);
+    var thisMonth = new Date(now).getFullYear() === year && new Date(now).getMonth() === month;
+    $('cal-label').textContent = first.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    $('cal-next').disabled = thisMonth || first.getTime() > now;
+
+    var grid = $('cal-grid');
+    grid.textContent = '';
+    ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].forEach(function (d) {
+      grid.appendChild(el('span', { class: 'cal-dow', text: d }));
+    });
+    for (var i = 0; i < lead; i++) grid.appendChild(el('span', { class: 'cal-pad' }));
+
+    var total = 0, studied = 0, bestMs = 0, bestDay = null, run = 0, bestRun = 0;
+    for (var day = 1; day <= daysInMonth; day++) {
+      var date = new Date(year, month, day);
+      var key = L.dayKey(date.getTime());
+      var info = days[key];
+      var ms = info ? info.studied : 0;
+      var future = key > todayKey;
+      total += ms;
+      if (ms > 0) { studied++; run++; bestRun = Math.max(bestRun, run); } else if (!future) run = 0;
+      if (ms > bestMs) { bestMs = ms; bestDay = date; }
+      var label = date.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) + ', ' + (ms ? L.formatMinutes(ms) + ' studied' : 'no study');
+      var tile = el('button', {
+        type: 'button', class: 'cal-day' + (key === todayKey ? ' today' : '') + (key === selectedKey ? ' sel' : '') + (future ? ' future' : ''),
+        'aria-label': label, 'aria-pressed': String(key === selectedKey), title: label
+      }, [el('b', { text: String(day) }), ms ? el('small', { text: L.formatMinutes(ms) }) : null]);
+      if (future) tile.disabled = true;
+      glowTile(tile, ms);
+      (function (k) { tile.addEventListener('click', function () { onPick(k); }); })(key);
+      grid.appendChild(tile);
+    }
+
+    var sum = $('cal-summary');
+    sum.textContent = '';
+    [['Studied this month', L.formatMinutes(total)], ['Days studied', String(studied)],
+      ['Best day', bestDay ? bestDay.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' · ' + L.formatMinutes(bestMs) : '—'],
+      ['Longest run', bestRun + (bestRun === 1 ? ' day' : ' days')]].forEach(function (p) {
+      sum.appendChild(el('div', {}, [el('dt', { text: p[0] }), el('dd', { text: p[1] })]));
+    });
+
+    var detail = $('cal-detail');
+    detail.textContent = '';
+    if (!selectedKey) {
+      detail.appendChild(el('p', { class: 'muted small', text: 'Click a day to see what you studied.' }));
+      return;
+    }
+    var parts = selectedKey.split('-').map(Number);
+    var sel = new Date(parts[0], parts[1] - 1, parts[2]);
+    var dInfo = days[selectedKey];
+    detail.appendChild(el('h3', { text: sel.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' }) }));
+    if (!dInfo) {
+      detail.appendChild(el('p', { class: 'muted small', text: 'No study logged this day.' }));
+      return;
+    }
+    detail.appendChild(el('p', { class: 'cal-day-total' }, [el('b', { text: L.formatMinutes(dInfo.studied) }), ' studied · ' + dInfo.sessions.length + (dInfo.sessions.length === 1 ? ' session' : ' sessions')]));
+    var list = el('ul', { class: 'cal-sessions' });
+    dInfo.sessions.slice().sort(function (a, b) { return a.endedAt - b.endedAt; }).forEach(function (r) {
+      list.appendChild(el('li', {}, [
+        el('span', { class: 'cs-time', text: new Date(r.endedAt).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) }),
+        el('span', { class: 'cs-main' }, [el('b', { text: r.subject }), ' ' + modeName(r) + ' · ' + L.formatMinutes(r.studied)]),
+        r.note ? el('span', { class: 'cs-note', text: r.note }) : null
+      ]));
+    });
+    detail.appendChild(list);
   }
 
   function renderSubjects(state, now, onPick) {
@@ -141,6 +265,7 @@
         el('small', { text: ms ? L.formatMinutes(ms) : 'Cold' })
       ]);
       tile.style.setProperty('--flame', String(0.25 + 0.75 * ms / max));
+      glowTile(tile, ms);
       grid.appendChild(tile);
     });
   }
@@ -177,6 +302,7 @@
   function renderDashboard(state, launch, now, onPickSubject) {
     renderLauncher(launch);
     renderSmith(state, now);
+    renderWeek(state, now);
     renderSubjects(state, now, onPickSubject);
     renderRecent(state);
   }
@@ -769,6 +895,7 @@
     resetSessionView: resetSessionView,
     renderHistory: renderHistory,
     renderStats: renderStats,
+    renderCalendar: renderCalendar,
     modeName: modeName,
     renderHall: renderHall,
     achievementToast: achievementToast,

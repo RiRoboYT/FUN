@@ -4,6 +4,19 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v2.5
+
+- **Backup & restore** (Settings → Backup & restore):
+  - **Download backup** saves everything to a `.json` file.
+  - **Restore from a backup** loads it on any PC or browser, after a confirmation showing what will be replaced.
+  - **Export history** saves a CSV that opens in Excel.
+  - Settings shows when you last backed up, and once you have a few sessions the app reminds you (at most weekly) if it's been more than two weeks.
+- **Calendar** (top of the Stats page, or "Calendar →" on the dashboard): a month view where each day's tile **glows hotter the more you studied**. Days you didn't study stay dark, a little study is a dull ember, and around 4 hours is white-hot. Click a day to see its sessions, subjects and notes. The summary shows hours this month, days studied, your best day and your longest run.
+- **One visual language:** the dashboard, Stats, Session Log, Forge Hall and Settings now match the session screen, with Inter Tight text, Fraunces headings, glass cards with lit edges and heat colours.
+  - **The dashboard hero** shows a greeting with your name, your current alloy as a metal ingot, and today's studied time, streak, Ingots and Forge Score.
+  - **The "This week" strip** has glowing day tiles.
+  - **Subject Forges** glow with the week's heat.
+
 ## What's new in v2.4 — the live forge
 
 The session screen is now set in a smithy. It's a fixed, cinematic 3D backdrop rendered with three.js. You don't interact with it; it reacts to how you study.

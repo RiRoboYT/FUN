@@ -1,5 +1,5 @@
 /* StudyForge service worker — cache-first so the app works offline after the first load. */
-var CACHE = 'studyforge-v2-4';
+var CACHE = 'studyforge-v2-5';
 var ASSETS = [
   './',
   'index.html',
