@@ -44,8 +44,37 @@
       labels: doc.getElementById('vault-labels'),
       panel: doc.getElementById('vault-panel'),
       loading: doc.getElementById('vault-loading'),
-      exit: doc.getElementById('vault-exit')
+      exit: doc.getElementById('vault-exit'),
+      forged: doc.getElementById('vault-forged'),
+      skip: doc.getElementById('vault-skip')
     };
+  }
+
+  // The molten-metal loader: real steps, never a fake timer.
+  var shown = 0;
+  function vaultProgress(f, label) {
+    var e = vaultEls();
+    var fill = doc.getElementById('vl-fill');
+    var to = Math.max(shown, f);
+    var apply = function (v) {
+      var h = 46 * v;
+      fill.setAttribute('y', String(58 - h));
+      fill.setAttribute('height', String(h));
+      doc.getElementById('vl-pct').textContent = Math.round(v * 100) + '%';
+      e.loading.setAttribute('aria-valuenow', String(Math.round(v * 100)));
+    };
+    if (label) doc.getElementById('vl-label').textContent = label;
+    if (root.gsap) {
+      var o = { v: shown };
+      root.gsap.to(o, { v: to, duration: 0.45, ease: 'power2.out', onUpdate: function () { apply(o.v); } });
+    } else apply(to);
+    shown = to;
+    if (f >= 1) {
+      setTimeout(function () {
+        if (root.gsap) root.gsap.to(e.loading, { autoAlpha: 0, duration: 0.5, delay: 0.15, onComplete: function () { e.loading.hidden = true; } });
+        else e.loading.hidden = true;
+      }, 250);
+    }
   }
 
   function vaultFail() {
@@ -56,14 +85,20 @@
   }
 
   function vaultStart() {
-    if (vault.api || vault.failed) return;
+    if (vault.api || vault.failed || vault.mounting) return;
+    vault.mounting = true;
+    vaultProgress(status === 'ready' ? 0.35 : 0.08, 'Loading the 3D engine');
     load(function (ok) {
       if (!ok) return vaultFail();
       if (vault.api) return;
-      try { root.SF.vault3d.mount(vaultEls()); } catch (e) { console.error(e); return vaultFail(); }
-      vault.api = root.SF.vault3d;
-      if (vault.state) vault.api.update(vault.state, true);
-      vault.api.setVisible(vault.visible);
+      vaultProgress(0.35, 'Loading the 3D engine');
+      var api = root.SF.vault3d;
+      // Feed it state first, so the scene is built with your alloys before the reveal.
+      api.update(vault.state, true);
+      api.setVisible(vault.visible);
+      Promise.resolve(api.mount(vaultEls(), { onProgress: vaultProgress, onForge: vault.onForge }))
+        .then(function () { vault.api = api; api.update(vault.state); api.setVisible(vault.visible); })
+        .catch(function (e) { console.error(e); vaultFail(); });
     });
   }
 
@@ -90,7 +125,16 @@
     });
   }
 
+  // Quietly fetch the 3D bundle while the browser is idle, so the Vault and forge open fast.
+  function preload() {
+    if (status !== 'idle' || !webglAvailable()) return;
+    var go = function () { load(function () {}); };
+    if ('requestIdleCallback' in root) root.requestIdleCallback(go, { timeout: 8000 });
+    else setTimeout(go, 2500);
+  }
+
   root.SF = root.SF || {};
+  root.SF.scene3d = { preload: preload };
   root.SF.vault = {
     setVisible: function (on) {
       vault.visible = on;
@@ -100,6 +144,10 @@
     update: function (state) {
       vault.state = state;
       if (vault.api) vault.api.update(state);
+    },
+    setHandlers: function (h) {
+      vault.onForge = h.onForge;
+      if (vault.api) vault.api.setHandlers(h);
     }
   };
   root.SF.forge = {
@@ -115,6 +163,12 @@
     setCalm: function (on) {
       forge.calm = !!on;
       if (forge.api) forge.api.setCalm(forge.calm);
+    },
+    finale: function (kind, alloyId) {
+      return forge.api && !forge.calm ? forge.api.finale(kind, alloyId) : false;
+    },
+    finaleSkip: function () {
+      if (forge.api) forge.api.finaleSkip();
     }
   };
 })(window);

@@ -35,6 +35,35 @@
     });
   }
 
+  // Filtered noise burst: hiss, steam, whoosh, impacts.
+  function noise(duration, freq, volume, sweep, attack) {
+    if (!enabled) return;
+    var a = audio();
+    if (!a) return;
+    var len = Math.ceil(a.sampleRate * duration);
+    var buf = a.createBuffer(1, len, a.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    var src = a.createBufferSource();
+    src.buffer = buf;
+    var f = a.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.value = freq;
+    f.Q.value = 0.8;
+    var t0 = a.currentTime;
+    if (sweep) {
+      f.frequency.setValueAtTime(freq * 0.4, t0);
+      f.frequency.exponentialRampToValueAtTime(freq * 1.6, t0 + duration * 0.6);
+    }
+    var g = a.createGain();
+    g.gain.setValueAtTime(0.0001, t0);
+    g.gain.exponentialRampToValueAtTime(volume, t0 + (attack || 0.01));
+    g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    src.connect(f).connect(g).connect(a.destination);
+    src.start(t0);
+    src.stop(t0 + duration + 0.05);
+  }
+
   var sounds = {
     start: function () { notes([[392, 0, 0.15], [523, 0.12, 0.25]], 'triangle'); },
     pause: function () { notes([[330, 0, 0.18]], 'triangle', 0.1); },
@@ -49,6 +78,13 @@
       notes([[784, 0, 0.12], [1175, 0.1, 0.55]], 'sine', 0.22);
       notes([[2349, 0.12, 0.45], [3136, 0.2, 0.35]], 'triangle', 0.04);
     },
+    // v3 cinematics
+    tick: function () { notes([[2200, 0, 0.05]], 'triangle', 0.05); notes([[3300, 0.01, 0.04]], 'sine', 0.025); },
+    thud: function () { notes([[90, 0, 0.35], [60, 0.02, 0.4]], 'sine', 0.35); noise(0.18, 400, 0.12); },
+    whoosh: function () { noise(0.5, 900, 0.08, true); },
+    quench: function () { noise(1.6, 3200, 0.18, false, 0.25); notes([[180, 0, 0.3]], 'sine', 0.08); },
+    clang: function () { notes([[880, 0, 0.6], [1320, 0, 0.45], [2093, 0.005, 0.3], [2794, 0.01, 0.2]], 'triangle', 0.09); noise(0.08, 6000, 0.1); },
+    pour: function () { noise(2.6, 700, 0.07, true, 0.6); },
     fail: function () { notes([[392, 0, 0.25], [311, 0.2, 0.25], [233, 0.4, 0.5]], 'sawtooth', 0.08); }
   };
 

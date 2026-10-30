@@ -276,13 +276,36 @@
     var result = S.applyResult(state, done);
     s = null;
     save();
-    if (doc.fullscreenElement && doc.exitFullscreen) doc.exitFullscreen().catch(function () {});
-    showView('dashboard');
     doc.title = BASE_TITLE;
+    var leaveFullscreen = function () {
+      if (doc.fullscreenElement && doc.exitFullscreen) doc.exitFullscreen().catch(function () {});
+    };
     if (result.discarded) {
+      leaveFullscreen();
+      showView('dashboard');
       ui.toast('Sessions under a minute are not logged.');
       return;
     }
+    // v3: the cinematic finale plays over the forge you've been watching.
+    if (root.SF.finale && root.gsap && currentView === 'session') {
+      var unlocked = result.newAchievements.slice();
+      root.SF.finale.play({
+        result: result, session: done, state: state,
+        onSettled: function () { unlocked.forEach(ui.achievementToast); },
+        onClose: function (note, target) {
+          if (note) {
+            result.record.note = note;
+            grantAchievements();
+            save();
+          }
+          leaveFullscreen();
+          showView(target === 'hall' ? 'hall' : 'dashboard');
+        }
+      });
+      return;
+    }
+    leaveFullscreen();
+    showView('dashboard');
     sound.play(done.failReason === 'strict' ? 'fail' : 'reward');
     ui.showReward(result, done);
     result.newAchievements.forEach(ui.achievementToast);
@@ -598,6 +621,22 @@
     ui.toast('Your progress lives only in this browser. Back it up in Settings → Backup.', 7000);
   }
 
+  // ---------- Forging (v3): an alloy's rewards arrive once its forging animation ends ----------
+  function forgeAlloy(i) {
+    var a = L.ALLOYS[i];
+    if (!a) return;
+    state.forged = state.forged || {};
+    if (!state.forged[a.id]) state.forged[a.id] = now();
+    // The new title is an upgrade, so wear it.
+    var title = L.TITLES.filter(function (t) { return t.alloy === i; })[0];
+    if (title) state.equippedTitle = title.id;
+    save();
+    sound.play('reward');
+    grantAchievements();
+    renderView();
+    ui.renderTop(state, now());
+  }
+
   // ---------- Wiring ----------
   function wire() {
     doc.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -647,6 +686,7 @@
       var d = new Date(calMonth); d.setDate(1); d.setMonth(d.getMonth() + 1);
       if (d.getTime() <= now()) { calMonth = d.getTime(); calSelected = null; renderView(); }
     });
+    $('ready-tag').addEventListener('click', function () { showView('hall'); });
     $('open-calendar').addEventListener('click', function () {
       calMonth = now();
       showView('stats');
@@ -772,6 +812,8 @@
     setInterval(loop, TICK_MS);
     setTimeout(grantAchievements, 900);
     setTimeout(maybeNudgeBackup, 4000);
+    setTimeout(function () { root.SF.scene3d.preload(); }, 2500);
+    root.SF.vault.setHandlers({ onForge: forgeAlloy });
     registerServiceWorker();
   }
 

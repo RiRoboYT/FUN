@@ -46,6 +46,15 @@
     return t ? t.name : L.TITLES[0].name;
   }
 
+  // The equipped title, as long as its alloy has been forged; otherwise the best one that has.
+  function currentTitle(state) {
+    var forged = L.forgedIndex(state);
+    var t = L.TITLES.filter(function (x) { return x.id === state.equippedTitle; })[0];
+    if (t && t.alloy <= forged) return t.name;
+    var best = L.TITLES.filter(function (x) { return x.alloy <= forged; }).pop();
+    return best ? best.name : L.TITLES[0].name;
+  }
+
   function studiedToday(state, now) {
     var today = L.dayKey(now);
     return state.sessions.reduce(function (sum, r) {
@@ -55,7 +64,7 @@
 
   // ---------- Top bar ----------
   function renderTop(state, now) {
-    $('top-title').textContent = titleName(state.equippedTitle);
+    $('top-title').textContent = currentTitle(state);
     $('top-ingots').textContent = state.totalIngots;
     $('top-streak').textContent = L.currentStreak(state.streak, L.dayKey(now));
     $('top-score').textContent = L.forgeScore(state);
@@ -99,15 +108,21 @@
 
   function renderSmith(state, now) {
     var stats = S.statsOf(state);
-    var idx = L.alloyIndex(stats);
+    var reached = L.alloyIndex(stats);
+    var idx = L.forgedIndex(state);
     var alloy = L.ALLOYS[idx];
-    var next = L.ALLOYS[idx + 1];
+    var next = L.ALLOYS[reached + 1];
     var streak = L.currentStreak(state.streak, L.dayKey(now));
+    var ready = L.readyToForge(state, reached);
 
     $('alloy-badge').dataset.alloy = alloy.id;
     $('alloy-name').textContent = alloy.name;
-    $('smith-title').textContent = titleName(state.equippedTitle);
+    $('smith-title').textContent = currentTitle(state);
+    var tag = $('ready-tag');
+    tag.hidden = !ready.length;
+    if (ready.length) tag.textContent = L.ALLOYS[ready[0]].name + ' is ready to forge →';
     if (next) {
+      alloy = L.ALLOYS[reached];
       $('alloy-next').textContent = 'Next: ' + next.name + ' — ' + next.desc;
       var prev = alloy.ingots;
       $('alloy-progress').style.width = Math.min(100, (state.totalIngots - prev) / (next.ingots - prev) * 100) + '%';
@@ -117,7 +132,7 @@
     }
     $('stat-ingots').textContent = state.totalIngots.toLocaleString();
     $('stat-score').textContent = L.forgeScore(state) + 'G';
-    $('ingot-mark').textContent = INGOT_MARKS[alloy.id];
+    $('ingot-mark').textContent = INGOT_MARKS[L.ALLOYS[idx].id];
     var d = new Date(now);
     var hr = d.getHours();
     $('hero-date').textContent = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
@@ -359,9 +374,7 @@
     phase.classList.toggle('break', s.phase === 'break');
     $('sess-strict').hidden = !(s.mode === 'exam' && s.config.strict);
 
-    var clock = new Date();
-    $('sess-clock').textContent = clock.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit', hour12: true });
-    $('sess-clock').dateTime = clock.toISOString();
+    renderClock(s);
 
     $('sess-timer').textContent = L.formatClock(S.mainClockMs(s));
     $('sess-timer-label').textContent = timerLabel(s);
@@ -406,6 +419,30 @@
     fs.querySelector('.lbl-text').textContent = fsText;
     fs.setAttribute('aria-label', fsText);
     setIcon(fs, doc.fullscreenElement ? 'i-shrink' : 'i-expand');
+  }
+
+  // ---------- Big wall clock (12-hour, no seconds) ----------
+  function clockParts(d) {
+    var h = d.getHours(), m = d.getMinutes();
+    return { h: String(h % 12 || 12), m: (m < 10 ? '0' : '') + m, ap: h < 12 ? 'AM' : 'PM' };
+  }
+
+  function renderClock(s) {
+    var d = new Date();
+    var p = clockParts(d);
+    if ($('ck-h').textContent !== p.h) $('ck-h').textContent = p.h;
+    if ($('ck-m').textContent !== p.m) $('ck-m').textContent = p.m;
+    if ($('ck-ap').textContent !== p.ap) $('ck-ap').textContent = p.ap;
+    $('sess-clock').dateTime = d.toISOString();
+    $('sess-clock').setAttribute('aria-label', p.h + ':' + p.m + ' ' + p.ap);
+    $('ck-date').textContent = d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
+    var ends = $('ck-ends');
+    var examLive = s.mode === 'exam' && s.status !== 'ready' && s.status !== 'ended';
+    ends.hidden = !examLive;
+    if (examLive) {
+      var e = clockParts(new Date(Date.now() + Math.max(0, s.config.examMs - s.examElapsed)));
+      ends.textContent = 'Exam ends at ' + e.h + ':' + e.m + ' ' + e.ap;
+    }
   }
 
   // ---------- Heat ring & split bar ----------
@@ -648,13 +685,15 @@
 
   // ---------- Forge Hall ----------
   function renderHall(state, onEquip) {
-    var idx = L.alloyIndex(S.statsOf(state));
+    var idx = L.forgedIndex(state);
+    var reached = L.alloyIndex(S.statsOf(state));
     var row = $('alloy-row');
     row.textContent = '';
     L.ALLOYS.forEach(function (a, i) {
-      row.appendChild(el('div', { class: 'alloy-card' + (i > idx ? ' locked' : '') }, [
+      var ready = i > idx && i <= reached;
+      row.appendChild(el('div', { class: 'alloy-card' + (i > idx && !ready ? ' locked' : '') }, [
         el('div', { class: 'alloy-badge', 'data-alloy': a.id }, [el('span', { text: a.name })]),
-        el('b', { text: a.name + (i === idx ? ' (current)' : '') }),
+        el('b', { text: a.name + (i === idx ? ' (current)' : ready ? ' (ready to forge)' : '') }),
         el('p', { text: a.desc })
       ]));
     });
@@ -663,10 +702,10 @@
     titles.textContent = '';
     L.TITLES.forEach(function (t) {
       var unlocked = t.alloy <= idx;
-      var equipped = state.equippedTitle === t.id;
+      var equipped = state.equippedTitle === t.id && unlocked;
       var btn = unlocked && !equipped
         ? el('button', { class: 'btn', type: 'button', text: 'Equip', onclick: function () { onEquip(t.id); } })
-        : el('span', { class: 'muted small', text: equipped ? 'Equipped' : 'Unlocks at ' + L.ALLOYS[t.alloy].name });
+        : el('span', { class: 'muted small', text: equipped && unlocked ? 'Equipped' : 'Forge ' + L.ALLOYS[t.alloy].name + ' to unlock' });
       titles.appendChild(el('div', { class: 'title-item' + (equipped ? ' equipped' : '') + (unlocked ? '' : ' locked') }, [
         el('b', { text: t.name }), btn
       ]));

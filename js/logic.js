@@ -135,6 +135,26 @@
     return idx;
   }
 
+  // v3: reaching an alloy makes it "ready to forge"; it only counts (title, alloy
+  // achievements, the look on the dashboard) once it has been forged in the Vault.
+  // Bronze is the starter alloy and is always forged.
+  function forgedIndex(state) {
+    var forged = (state && state.forged) || {};
+    var idx = 0;
+    for (var i = 1; i < ALLOYS.length; i++) {
+      if (!forged[ALLOYS[i].id]) break;
+      idx = i;
+    }
+    return idx;
+  }
+
+  // Alloys reached but not yet forged, in order.
+  function readyToForge(state, reachedIdx) {
+    var list = [];
+    for (var i = forgedIndex(state) + 1; i <= reachedIdx; i++) list.push(i);
+    return list;
+  }
+
   function unlockedTitles(alloyIdx) {
     return TITLES.filter(function (t) { return t.alloy <= alloyIdx; });
   }
@@ -213,7 +233,7 @@
       session: function (r) { return timed(r) && r.studied >= 20 * MIN && hourOf(r.startedAt) < 7 && hourOf(r.startedAt) >= 4; } },
     { id: 'night_owl', name: 'Night Owl', icon: '🦉', tier: 'rare', desc: 'Finish a 30+ min session after 10 PM.',
       session: function (r) { return timed(r) && r.studied >= 30 * MIN && hourOf(r.endedAt) >= 22; } },
-    { id: 'silver_lining', name: 'Silver Lining', icon: '🥈', tier: 'rare', desc: 'Reach the Silver alloy.',
+    { id: 'silver_lining', name: 'Silver Lining', icon: '🥈', tier: 'rare', desc: 'Forge the Silver alloy in the Vault.',
       stat: function (t) { return t.alloyIdx >= 1; }, progress: function (t) { return [t.totalIngots, 100, 'Ingots']; } },
     { id: 'polymath', name: 'Polymath', icon: '🧠', tier: 'rare', desc: 'Study 5 different subjects in one week.',
       stat: function (t) { return t.maxSubjectsInWeek >= 5; }, progress: function (t) { return [t.maxSubjectsInWeek, 5, 'subjects']; } },
@@ -235,7 +255,7 @@
       session: function (r) { return r.mode === 'exam' && r.completed && !!r.strict; } },
     { id: 'legendary_attempt', name: 'Legendary Attempt', icon: '🌟', tier: 'epic', desc: 'Finish an exam with under 1 min Distracted.',
       session: function (r) { return !!r.legendary; } },
-    { id: 'golden_touch', name: 'Golden Touch', icon: '🥇', tier: 'epic', desc: 'Reach the Gold alloy.',
+    { id: 'golden_touch', name: 'Golden Touch', icon: '🥇', tier: 'epic', desc: 'Forge the Gold alloy in the Vault.',
       stat: function (t) { return t.alloyIdx >= 2; }, progress: function (t) { return [t.totalIngots, 300, 'Ingots']; } },
     { id: 'fifty_hours', name: 'Fifty Hours', icon: '📚', tier: 'epic', desc: 'Study 50 hours in total.',
       stat: function (t) { return t.totalStudied >= 50 * HOUR; }, progress: function (t) { return [t.totalStudied / HOUR, 50, 'h']; } },
@@ -243,7 +263,7 @@
     // Legendary
     { id: 'eternal_flame', name: 'Eternal Flame', icon: '🕯️', tier: 'legendary', desc: 'Reach a 30-day streak.',
       stat: function (t) { return t.bestStreak >= 30; }, progress: function (t) { return [t.bestStreak, 30, 'days']; } },
-    { id: 'mythril_smith', name: 'Mythril Smith', icon: '👑', tier: 'legendary', desc: 'Reach the Mythril alloy.',
+    { id: 'mythril_smith', name: 'Mythril Smith', icon: '👑', tier: 'legendary', desc: 'Forge the Mythril alloy in the Vault.',
       stat: function (t) { return t.alloyIdx >= 4; }, progress: function (t) { return [t.totalIngots, 1500, 'Ingots']; } },
     { id: 'centurion', name: 'Centurion', icon: '🏛️', tier: 'legendary', desc: 'Study 100 hours in total.',
       stat: function (t) { return t.totalStudied >= 100 * HOUR; }, progress: function (t) { return [t.totalStudied / HOUR, 100, 'h']; } },
@@ -285,7 +305,8 @@
     Object.keys(perWeek).forEach(function (w) {
       t.maxSubjectsInWeek = Math.max(t.maxSubjectsInWeek, Object.keys(perWeek[w]).length);
     });
-    t.alloyIdx = alloyIndex(t);
+    t.reachedIdx = alloyIndex(t);
+    t.alloyIdx = Math.min(t.reachedIdx, forgedIndex(state));
     return t;
   }
 
@@ -601,6 +622,8 @@
     advanceStreak: advanceStreak,
     alloyIndex: alloyIndex,
     unlockedTitles: unlockedTitles,
+    forgedIndex: forgedIndex,
+    readyToForge: readyToForge,
     blockBonus: blockBonus,
     isLegendaryAttempt: isLegendaryAttempt,
     sessionIngots: sessionIngots,

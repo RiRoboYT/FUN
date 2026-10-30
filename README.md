@@ -4,6 +4,33 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v3 — animation
+
+- **Forging in the Vault:** reaching an alloy's requirements no longer hands you the ingot.
+  - The alloy becomes **Ready to forge**: its mould sits waiting with a crucible of molten metal behind it, and the dashboard shows "Silver is ready to forge →".
+  - Press **Forge Silver** (in the Vault's side panel) to play a ~10 s cinematic:
+    1. The crucible lifts and pours a glowing stream into the mould.
+    2. The metal cools from orange-hot to a crust.
+    3. The mould is knocked away.
+    4. Three hammer strikes press in the hallmark, with sparks.
+    5. A light sweeps over the bar and the "Forged" card appears.
+  - The title and the alloy achievement are granted **only after the animation finishes**.
+  - Bronze is the starter alloy and is already forged.
+  - Alloys you'd already reached before v3 start as ready to forge, so you get to watch each one.
+  - Forged alloys have **↻ Replay the forging**.
+  - Press Space, Esc or Enter (or the Skip button) to skip.
+- **Session-end animation:** the old reward pop-up is replaced by a ~7 s sequence.
+  - In the 3D forge, the billet is lifted, quenched in the water barrel with a burst of steam, and set on the anvil under a spotlight as a finished ingot. A failed exam cracks the billet apart instead.
+  - At the same time, a card counts up each part of your reward: heat yield, streak multiplier, bonuses and achievements. Ingots fly to your bank, a wax seal stamps your peak heat, and a bar fills toward your next alloy.
+  - It finishes with your session note box and buttons for **Dashboard**, **Forge Hall** or **Go to the Vault** (when an alloy is ready).
+  - Press Space, Esc or Enter (or the Skip button) to jump to the end.
+- **Loading animations:**
+  - The Vault shows an ingot mould filling with molten metal, with real progress: lighting the studio → casting the metals → polishing the bullion → ready. The scene then dollies in.
+  - The session forge shows ember dots while it lights, then the room glows up.
+  - The 3D engine now preloads quietly in the background a few seconds after the app opens.
+- **Big real-world clock** on the session screen (top-right): 12-hour time without seconds (e.g. 5:42 PM), with the date underneath. During an exam it also shows when the exam ends.
+- New synthesized sounds for the animations: pour, quench hiss, thud, clang, tick and whoosh.
+
 ## What's new in v2.5
 
 - **Backup & restore** (Settings → Backup & restore):

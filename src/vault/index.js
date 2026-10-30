@@ -8,6 +8,7 @@ import { ingotGeometry, mouldGeometry, cavityAt, roundedRectGeometry, MOULD } fr
 import { metalFace, sandSurface, graniteSurface, radialTexture } from './textures.js';
 import { createStudioEnvironment } from './environment.js';
 import { moltenMaterial, createEmbers, createLightBeam } from './effects.js';
+import { RoundedBoxGeometry as RBG } from 'three/examples/jsm/geometries/RoundedBoxGeometry.js';
 import { ContactShadows, Pipeline } from './render.js';
 
 const SF = window.SF;
@@ -242,17 +243,20 @@ function dispose(obj) {
 
 // ---------- Data ----------
 function computeStatus(state) {
-  const alloyIdx = L.alloyIndex(L.achievementStats(state));
+  const reached = L.alloyIndex(L.achievementStats(state));
+  const forged = L.forgedIndex(state);
   const journey = L.alloyJourney(state);
   return L.ALLOYS.map((a, i) => {
-    const kind = i <= alloyIdx ? 'forged' : i === alloyIdx + 1 ? 'next' : 'locked';
-    return { kind, journey: journey[i], fill: kind === 'next' ? L.mouldFill(state, i) : 0 };
+    const kind = i <= forged ? 'forged' : i <= reached ? 'ready' : i === reached + 1 ? 'next' : 'locked';
+    // The hallmark carries the day you forged it (Bronze: the day your history began).
+    const forgedTs = i === 0 ? (journey[0].forgedAt || (state.forged && state.forged.bronze)) : state.forged && state.forged[a.id];
+    return { kind, journey: journey[i], forgedTs, fill: kind === 'next' ? L.mouldFill(state, i) : 0 };
   });
 }
 
 function rebuild(state) {
   V.status = computeStatus(state);
-  const key = JSON.stringify([V.status.map((s) => [s.kind, s.journey.forgedAt || 0, s.fill.toFixed(3)]), displayName(state)]);
+  const key = JSON.stringify([V.status.map((s) => [s.kind, s.forgedTs || 0, s.fill.toFixed(3)]), displayName(state)]);
   if (key === V.key) return false;
   V.key = key;
   molten = null;
@@ -260,7 +264,9 @@ function rebuild(state) {
     if (slot.item) { slot.group.remove(slot.item); dispose(slot.item); }
     const s = V.status[i];
     slot.kind = s.kind;
-    slot.item = s.kind === 'forged' ? makeIngot(i, state, s.journey) : makeMould(i, s.fill, s.kind === 'next');
+    slot.item = s.kind === 'forged' ? makeIngot(i, state, { forgedAt: s.forgedTs })
+      : s.kind === 'ready' ? makeReady(i)
+      : makeMould(i, s.fill, s.kind === 'next');
     slot.item.traverse((o) => { o.userData.slot = i; });
     slot.group.add(slot.item);
   });
@@ -308,7 +314,7 @@ function pick() {
 }
 
 function onDown(e) {
-  if (e.button !== 0) return;
+  if (e.button !== 0 || V.cinematic) return;
   renderer.domElement.setPointerCapture(e.pointerId);
   toNdc(e);
   drag = { x: e.clientX, y: e.clientY, cam: camX, yaw: spin.yaw, pitch: spin.pitch, moved: 0, lastX: e.clientX, lastT: performance.now(), v: 0 };
@@ -316,6 +322,7 @@ function onDown(e) {
 }
 
 function onMove(e) {
+  if (V.cinematic) return;
   toNdc(e);
   V.lastInput = performance.now();
   if (drag) {
@@ -344,7 +351,7 @@ function onMove(e) {
 }
 
 function onUp(e) {
-  if (!drag) return;
+  if (!drag || V.cinematic) return;
   const d = drag;
   drag = null;
   if (d.moved < 6) {
@@ -407,6 +414,7 @@ function adaptQuality(ms) {
 
 function frame() {
   const dt = Math.min(0.05, clock.getDelta());
+  if (CIN.active) { V.lastInput = performance.now(); settle = 60; }
   const idle = performance.now() - V.lastInput > 2500 && !drag;
   // When nothing is being touched, draw at half rate: the lava still moves, the fan stays quiet.
   V.tick = (V.tick || 0) + 1;
@@ -455,6 +463,9 @@ function frame() {
     }
     if (Math.abs(slot.item.rotation.y) > 0.001 || Math.abs(slot.item.rotation.x) > 0.001) shadowsMoving = shadowsMoving || slot.lift > 0.01;
   });
+
+  updateCinematic(dt);
+  updateReady();
 
   // Molten metal, embers, beam & dust.
   if (molten) {
@@ -520,7 +531,7 @@ function updateLabels(force) {
   slots.forEach((slot, i) => {
     const s = V.status[i];
     const a = L.ALLOYS[i];
-    const sub = s.kind === 'forged' ? 'Forged' : s.kind === 'next' ? `${Math.round(s.fill * 100)}% cast` : 'Locked';
+    const sub = s.kind === 'forged' ? 'Forged' : s.kind === 'ready' ? 'Ready to forge' : s.kind === 'next' ? `${Math.round(s.fill * 100)}% cast` : 'Locked';
     slot.label.querySelector('.vl-name').textContent = a.name;
     slot.label.querySelector('.vl-sub').textContent = sub;
     slot.label.dataset.kind = s.kind;
@@ -571,7 +582,8 @@ function renderPanel() {
   p.appendChild(h('span', 'vp-eyebrow', `${String(i + 1).padStart(2, '0')} / 05 · ${m.grade}`));
   p.appendChild(h('h3', 'vp-name', a.name));
   p.appendChild(h('span', `vp-status ${s.kind}`,
-    s.kind === 'forged' ? (s.journey.forgedAt ? `Forged ${longDate(s.journey.forgedAt)}` : 'Forged')
+    s.kind === 'forged' ? (s.forgedTs ? `Forged ${longDate(s.forgedTs)}` : 'Forged')
+      : s.kind === 'ready' ? 'Ready to forge'
       : s.kind === 'next' ? `In the mould · ${Math.round(s.fill * 100)}% cast` : 'Locked'));
 
   const title = L.TITLES.find((t) => t.alloy === i);
@@ -601,6 +613,20 @@ function renderPanel() {
     btn.addEventListener('click', () => select(i, { inspect: !V.inspect }));
     p.appendChild(btn);
     if (V.inspect) p.appendChild(h('p', 'vp-note', 'Drag to turn the bar. Your hallmark is stamped on the back.'));
+    if (i > 0 && !V.inspect) {
+      const replay = h('button', 'link-btn vp-replay', '↻ Replay the forging');
+      replay.type = 'button';
+      replay.addEventListener('click', () => forgeCinematic(i, { replay: true }));
+      p.appendChild(replay);
+    }
+  } else if (s.kind === 'ready') {
+    const firstReady = V.status.findIndex((x) => x.kind === 'ready');
+    p.appendChild(h('p', 'vp-lede', `The ${a.name.toLowerCase()} is molten and waiting in the crucible. Forge it to claim ${title ? 'the ' + title.name + ' title and ' : ''}its achievements.`));
+    const btn = h('button', 'btn btn-primary vp-forge', i === firstReady ? `Forge ${a.name}` : `Forge ${L.ALLOYS[firstReady].name} first`);
+    btn.type = 'button';
+    btn.disabled = i !== firstReady;
+    btn.addEventListener('click', () => forgeCinematic(i));
+    p.appendChild(btn);
   } else {
     p.appendChild(h('p', 'vp-lede', s.kind === 'next'
       ? `Molten ${a.name.toLowerCase()} is filling the mould. Every Ingot you earn pours more in.`
@@ -644,6 +670,322 @@ function renderPanel() {
   p.appendChild(nav);
 }
 
+// ---------- v3: ready to forge ----------
+const graphite = () => new THREE.MeshPhysicalMaterial({
+  color: 0x2b2b30, roughness: 0.5, metalness: 0.3, sheen: 0.3, sheenColor: new THREE.Color(0x80808a), side: THREE.DoubleSide
+});
+
+// A graphite crucible full of molten metal, sitting on a firebrick behind its mould.
+function crucibleGroup(color) {
+  const g = new THREE.Group();
+  const prof = [[0, 0], [0.2, 0], [0.25, 0.04], [0.29, 0.36], [0.31, 0.42], [0.27, 0.42], [0.24, 0.08], [0, 0.06]]
+    .map(([x, y]) => new THREE.Vector2(x, y));
+  const body = new THREE.Mesh(new THREE.LatheGeometry(prof, 40), graphite());
+  g.add(body);
+  const melt = new THREE.Mesh(new THREE.CircleGeometry(0.255, 40).rotateX(-Math.PI / 2), moltenMaterial(color));
+  melt.position.y = 0.37;
+  g.add(melt);
+  // Short reach: it warms the crucible and mould without streaking across the polished slab.
+  const light = new THREE.PointLight(0xff6a1a, 1.8, 1.05, 2);
+  light.position.y = 0.62;
+  g.add(light);
+  g.userData = { melt, light };
+  return g;
+}
+
+const STAND = { z: -1.0, h: 0.3 };
+const readyItems = [];
+
+function makeReady(i) {
+  const g = makeMould(i, 0, false);
+  const brick = new THREE.Mesh(new RBG(0.62, STAND.h, 0.62, 2, 0.02),
+    new THREE.MeshStandardMaterial({ color: 0x6b3a28, roughness: 0.9 }));
+  brick.position.set(0, STAND.h / 2, STAND.z);
+  g.add(brick);
+  const c = crucibleGroup(METALS[L.ALLOYS[i].id].color);
+  c.position.set(0, STAND.h, STAND.z);
+  g.add(c);
+  const embers = createEmbers(40, new THREE.Vector3(0.4, 1.2, 0.4));
+  embers.position.set(0, STAND.h + 0.4, STAND.z);
+  g.add(embers);
+  g.userData.crucible = c;
+  g.userData.embers = embers;
+  readyItems.push(g);
+  return g;
+}
+
+function updateReady() {
+  for (let k = readyItems.length - 1; k >= 0; k--) {
+    const g = readyItems[k];
+    if (!g.parent) { readyItems.splice(k, 1); continue; }
+    g.userData.crucible.userData.melt.material.uniforms.uTime.value = V.time;
+    g.userData.crucible.userData.light.intensity = 1.6 + Math.sin(V.time * 6.3) * 0.25;
+    g.userData.embers.material.uniforms.uTime.value = V.time;
+    g.userData.embers.material.uniforms.uPixel.value = renderer.getPixelRatio();
+  }
+}
+
+// ---------- v3: the forging cinematic ----------
+const CIN = { tl: null, active: false, objs: [], slot: -1, replay: false, stream: null, surface: null, crucible: null, fill: { v: 0 }, sparks: null, hammer: null, cool: { v: 0 } };
+
+function sparkSystem() {
+  const n = 70;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  geo.setAttribute('life', new THREE.BufferAttribute(new Float32Array(n), 1));
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, uniforms: { uPixel: { value: 1 } },
+    vertexShader: 'attribute float life; uniform float uPixel; varying float vL; void main(){ vL = life; vec4 mv = modelViewMatrix * vec4(position,1.0); gl_Position = projectionMatrix * mv; gl_PointSize = (2.0 + 4.0 * life) * uPixel * 3.0 / -mv.z; }',
+    fragmentShader: 'varying float vL; void main(){ float d = length(gl_PointCoord - 0.5); float a = smoothstep(0.5, 0.0, d) * vL; gl_FragColor = vec4(mix(vec3(1.0,0.45,0.1), vec3(1.0,0.9,0.6), vL) * 5.0 * a, a); }'
+  }));
+  pts.userData = { vel: new Float32Array(n * 3), n, alive: 0 };
+  pts.frustumCulled = false;
+  return pts;
+}
+
+function sparksAt(at) {
+  const sp = CIN.sparks, d = sp.userData;
+  const pos = sp.geometry.attributes.position, life = sp.geometry.attributes.life;
+  for (let i = 0; i < d.n; i++) {
+    pos.setXYZ(i, at.x, at.y, at.z);
+    const a = Math.random() * Math.PI * 2, out = 0.6 + Math.random() * 2;
+    d.vel[i * 3] = Math.cos(a) * out; d.vel[i * 3 + 1] = 0.8 + Math.random() * 2.2; d.vel[i * 3 + 2] = Math.sin(a) * out * 0.6 + 0.4;
+    life.setX(i, 0.6 + Math.random() * 0.4);
+  }
+  d.alive = 1.2;
+  pos.needsUpdate = life.needsUpdate = true;
+}
+
+function hammerMesh() {
+  const g = new THREE.Group();
+  const head = new THREE.Mesh(new RBG(0.12, 0.12, 0.3, 3, 0.02), new THREE.MeshPhysicalMaterial({ color: 0x3a3a40, metalness: 1, roughness: 0.3 }));
+  head.position.y = 0.06;
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.03, 0.9, 12), new THREE.MeshStandardMaterial({ color: 0x5a3b24, roughness: 0.7 }));
+  handle.rotation.z = Math.PI / 2;
+  handle.position.set(0.48, 0.07, 0);
+  g.add(head, handle);
+  return g;
+}
+
+function updateCinematic(dt) {
+  if (!CIN.active) return;
+  const slot = slots[CIN.slot];
+  if (CIN.surface) {
+    const f = Math.max(0.001, CIN.fill.v);
+    const c = cavityAt(f), full = cavityAt(1);
+    CIN.surface.visible = CIN.fill.v > 0.002;
+    CIN.surface.position.y = c.level;
+    CIN.surface.scale.set(c.width / full.width, 1, c.depth / full.depth);
+    CIN.surface.material.uniforms.uTime.value = V.time;
+    CIN.surface.material.uniforms.uCool.value = CIN.cool.v;
+    CIN.glow.intensity = (1 - CIN.cool.v) * (0.4 + f * 2.2);
+  }
+  if (CIN.crucible) CIN.crucible.userData.melt.material.uniforms.uTime.value = V.time;
+  // The pour stream runs from the crucible's lip to the metal surface.
+  if (CIN.stream && CIN.stream.visible) {
+    const lip = CIN.crucible.localToWorld(new THREE.Vector3(0, 0.42, 0.29));
+    const base = slot.group.localToWorld(new THREE.Vector3(0, cavityAt(Math.max(0.001, CIN.fill.v)).level, -0.05));
+    const mid = lip.clone().add(base).multiplyScalar(0.5);
+    const len = lip.distanceTo(base);
+    CIN.stream.position.copy(mid);
+    CIN.stream.scale.set(1, len, 1);
+    CIN.stream.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), lip.clone().sub(base).normalize());
+    CIN.stream.material.uniforms.uTime.value = V.time;
+  }
+  if (CIN.sparks) {
+    const sp = CIN.sparks, d = sp.userData;
+    sp.material.uniforms.uPixel.value = renderer.getPixelRatio();
+    if (d.alive > 0) {
+      d.alive -= dt;
+      const pos = sp.geometry.attributes.position, life = sp.geometry.attributes.life;
+      for (let i = 0; i < d.n; i++) {
+        const l = life.getX(i);
+        if (l <= 0) continue;
+        d.vel[i * 3 + 1] -= 6.5 * dt;
+        pos.setXYZ(i, pos.getX(i) + d.vel[i * 3] * dt, pos.getY(i) + d.vel[i * 3 + 1] * dt, pos.getZ(i) + d.vel[i * 3 + 2] * dt);
+        life.setX(i, Math.max(0, l - dt * 1.2));
+      }
+      pos.needsUpdate = life.needsUpdate = true;
+    }
+  }
+  V.shadowsDirty = true;
+}
+
+/**
+ * Forge an alloy: the crucible pours, the metal cools, the bar is knocked out and hammered
+ * three times while the hallmark presses in. ~10 s, skippable. On a first forging the
+ * rewards (title, achievements) are granted only once the animation has finished.
+ */
+function forgeCinematic(i, opts = {}) {
+  const gsap = window.gsap;
+  if (CIN.active || !gsap) return;
+  const state = V.state;
+  const slot = slots[i];
+  const a = L.ALLOYS[i];
+  const metal = METALS[a.id];
+  CIN.active = true;
+  CIN.slot = i;
+  CIN.replay = !!opts.replay;
+  V.cinematic = true;
+  select(i, { inspect: false });
+  V.els.vault.classList.add('forging');
+
+  // Stage props: a fresh mould, the crucible on its brick, the stream, the hammer, sparks.
+  slot.item.visible = false;
+  const g = new THREE.Group();
+  slot.group.add(g);
+  CIN.objs = [g];
+  const mould = makeMould(i, 0, false);
+  const mouldMat = mould.userData.mould.material;
+  mouldMat.transparent = true;
+  g.add(mould);
+  const brick = new THREE.Mesh(new RBG(0.62, STAND.h, 0.62, 2, 0.02), new THREE.MeshStandardMaterial({ color: 0x6b3a28, roughness: 0.9, transparent: true }));
+  brick.position.set(0, STAND.h / 2, STAND.z);
+  g.add(brick);
+  const crucible = crucibleGroup(metal.color);
+  crucible.position.set(0, STAND.h, STAND.z);
+  g.add(crucible);
+  CIN.crucible = crucible;
+  const full = cavityAt(1);
+  const surface = new THREE.Mesh(roundedRectGeometry(full.width, full.depth, 0.05), moltenMaterial(metal.color));
+  surface.visible = false;
+  g.add(surface);
+  CIN.surface = surface;
+  CIN.glow = new THREE.PointLight(0xff6a1a, 0, 0.85, 2);
+  CIN.glow.position.y = 0.6;
+  g.add(CIN.glow);
+  const streamMat = moltenMaterial(metal.color);
+  streamMat.uniforms.uFlow.value.set(0, -3.5);
+  CIN.stream = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.045, 1, 14, 1, true), streamMat);
+  CIN.stream.visible = false;
+  scene.add(CIN.stream);
+  CIN.objs.push(CIN.stream);
+  CIN.sparks = sparkSystem();
+  scene.add(CIN.sparks);
+  CIN.objs.push(CIN.sparks);
+  CIN.hammer = hammerMesh();
+  CIN.hammer.visible = false;
+  g.add(CIN.hammer);
+  const ingot = makeIngot(i, state, { forgedAt: opts.replay ? V.status[i].forgedTs : Date.now() });
+  ingot.visible = false;
+  g.add(ingot);
+  const mats = ingot.userData.mats;
+  const stamps = mats.slice(1); // top, front, back carry the inscriptions
+  const maps = stamps.map((m) => m.map);
+  stamps.forEach((m) => { m.normalScale.set(0, 0); m.map = null; m.needsUpdate = true; });
+  mats.forEach((m) => { m.emissive = new THREE.Color(1, 0.32, 0.06); m.emissiveIntensity = 0; });
+  CIN.fill.v = 0;
+  CIN.cool.v = 0;
+
+  // Camera: closer, slightly above, so the pour and the stamp read clearly.
+  const camFrom = camPos.clone(), lookFrom = camLook.clone();
+  const tl = gsap.timeline({ onComplete: () => finishCinematic(), defaults: { ease: 'power2.inOut' } });
+  CIN.tl = tl;
+  const ingotTop = new THREE.Vector3(0, 0.44, 0);
+  tl.to(camPos, { x: 0.2, y: 1.6, z: 3.3, duration: 1.2 }, 0)
+    .to(camLook, { y: SLAB_TOP + 0.32, duration: 1.2 }, 0)
+    // Lift the crucible from its brick, carry it over the mould, tilt and pour.
+    .to(crucible.position, { y: 1.15, duration: 0.9, ease: 'power2.out' }, 0.5)
+    .to(crucible.position, { z: -0.52, duration: 0.7 }, 1.2)
+    .to(crucible.rotation, { x: 1.75, duration: 0.6, ease: 'power2.in' }, 1.7)
+    .call(() => { CIN.stream.visible = true; SF.sound && SF.sound.play('pour'); }, null, 2.05)
+    .to(CIN.fill, { v: 1, duration: 2.2, ease: 'sine.inOut' }, 2.1)
+    .to(crucible.userData.melt.scale, { x: 0.2, z: 0.2, duration: 2.2, ease: 'sine.in' }, 2.1)
+    .to(crucible.rotation, { x: 0, duration: 0.55 }, 4.3)
+    .call(() => { CIN.stream.visible = false; }, null, 4.32)
+    .to(crucible.position, { z: STAND.z, y: STAND.h, duration: 0.8 }, 4.75)
+    // Cooling: the glow sinks into a crust, then sets as solid metal.
+    .to(CIN.cool, { v: 1, duration: 1.8, ease: 'power1.inOut' }, 4.6)
+    // Knock-out: the mould and brick fall away and the hot bar is revealed.
+    .call(() => {
+      ingot.visible = true;
+      mats.forEach((m) => { m.emissiveIntensity = 0.9; });
+      SF.sound && SF.sound.play('thud');
+    }, null, 6.35)
+    .to(mould.position, { y: -0.6, duration: 0.6, ease: 'power3.in' }, 6.35)
+    .to(mouldMat, { opacity: 0, duration: 0.5 }, 6.4)
+    .to(brick.material, { opacity: 0, duration: 0.5 }, 6.4)
+    .to(crucible.position, { y: -0.6, duration: 0.6, ease: 'power3.in' }, 6.4)
+    .to(crucible.userData.light, { intensity: 0, duration: 0.3 }, 6.4)
+    .call(() => { surface.visible = false; CIN.surface = null; CIN.glow.intensity = 0; }, null, 6.4);
+  mats.forEach((m) => tl.to(m, { emissiveIntensity: 0, duration: 2.6, ease: 'power2.out' }, 6.5));
+
+  // Three hammer strikes; each presses the hallmark a little deeper.
+  [7.0, 7.65, 8.3].forEach((t, k) => {
+    tl.call(() => { CIN.hammer.visible = true; }, null, t - 0.3)
+      .fromTo(CIN.hammer.position, { x: 0.05, y: 0.95, z: 0.05 }, { x: 0.02, y: ingotTop.y, z: 0.02, duration: 0.18, ease: 'power3.in' }, t - 0.18)
+      .fromTo(CIN.hammer.rotation, { z: 0.7 }, { z: 0, duration: 0.18, ease: 'power3.in' }, t - 0.18)
+      .call(() => {
+        const at = slot.group.localToWorld(ingotTop.clone());
+        sparksAt(at);
+        SF.sound && SF.sound.play('clang');
+        const depth = 0.3 * (k + 1);
+        stamps.forEach((m) => m.normalScale.set(depth, depth));
+        if (k === 2) stamps.forEach((m, n) => { m.map = maps[n]; m.needsUpdate = true; });
+        camPos.y += 0.035;
+      }, null, t)
+      .to(camPos, { y: '-=0.035', duration: 0.25, ease: 'power2.out' }, t + 0.01)
+      .to(CIN.hammer.position, { y: 0.8, duration: 0.3, ease: 'power2.out' }, t + 0.02);
+  });
+  tl.call(() => { CIN.hammer.visible = false; }, null, 8.75)
+    // The reveal: a sweep of light and the title card.
+    .to(beam.userData.cone.material.uniforms.uOpacity, { value: 0.2, duration: 0.6, ease: 'power2.out' }, 8.8)
+    .to(beam.userData.cone.material.uniforms.uOpacity, { value: 0.06, duration: 1.0 }, 9.6)
+    .call(() => showForgedCard(i), null, 8.85)
+    .to(camPos, { x: camFrom.x, y: camFrom.y, z: camFrom.z, duration: 1.4 }, 9.4)
+    .to(camLook, { x: lookFrom.x, y: lookFrom.y, z: lookFrom.z, duration: 1.4 }, 9.4);
+  CIN.ingot = ingot;
+  CIN.maps = maps;
+  CIN.stamps = stamps;
+  showSkip(true);
+}
+
+function showForgedCard(i) {
+  const a = L.ALLOYS[i];
+  const title = L.TITLES.find((t) => t.alloy === i);
+  const card = V.els.forged;
+  card.querySelector('.vf-eyebrow').textContent = CIN.replay ? 'Replay' : 'Forged';
+  card.querySelector('.vf-name').textContent = a.name;
+  card.querySelector('.vf-sub').textContent = title ? `Title unlocked · ${title.name}` : 'A new alloy for your vault';
+  card.dataset.alloy = a.id;
+  card.hidden = false;
+  window.gsap.fromTo(card, { autoAlpha: 0, y: 16, scale: 0.97 }, { autoAlpha: 1, y: 0, scale: 1, duration: 0.6, ease: 'power3.out' });
+  window.gsap.to(card, { autoAlpha: 0, y: -10, duration: 0.5, delay: 2.6, onComplete: () => { card.hidden = true; } });
+}
+
+function showSkip(on) {
+  const b = V.els.skip;
+  b.hidden = !on;
+}
+
+function finishCinematic() {
+  if (!CIN.active) return;
+  const i = CIN.slot;
+  const slot = slots[i];
+  if (CIN.stamps) CIN.stamps.forEach((m, n) => { m.normalScale.set(0.9, 0.9); m.map = CIN.maps[n]; m.needsUpdate = true; });
+  CIN.objs.forEach((o) => { if (o.parent) o.parent.remove(o); dispose(o); });
+  CIN.objs = [];
+  CIN.stream = CIN.surface = CIN.crucible = CIN.sparks = CIN.hammer = CIN.ingot = null;
+  CIN.tl = null;
+  CIN.active = false;
+  V.cinematic = false;
+  V.els.vault.classList.remove('forging');
+  showSkip(false);
+  beam.userData.cone.material.uniforms.uOpacity.value = 0.06;
+  if (slot.item) slot.item.visible = true;
+  setCameraTargets();
+  V.shadowsDirty = true;
+  if (!CIN.replay && V.onForge) V.onForge(i); // grants the title & achievements, then the vault rebuilds
+  wake();
+}
+
+function skipCinematic() {
+  if (!CIN.active || !CIN.tl) return;
+  CIN.tl.progress(1, true);
+  finishCinematic();
+  if (!CIN.replay) showForgedCard(CIN.slot);
+}
+
 // ---------- Size & visibility ----------
 function resize() {
   if (!renderer) return;
@@ -674,12 +1016,19 @@ function observeVisibility() {
 }
 
 // ---------- Public API (used by js/vault.js) ----------
-function mount(els) {
+const nextFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+
+async function mount(els, opts = {}) {
+  const progress = opts.onProgress || (() => {});
   V.els = els;
+  V.onForge = opts.onForge || null;
+  progress(0.42, 'Lighting the studio');
+  await nextFrame();
   const q = new URLSearchParams(location.search).get('vaultQuality');
   if (q && ['high', 'medium', 'low'].includes(q)) { V.quality = q; V.forcedQuality = true; }
   buildScene(els.stage);
   buildLabels();
+  els.skip.addEventListener('click', skipCinematic);
   const canvas = renderer.domElement;
   canvas.addEventListener('pointerdown', onDown);
   canvas.addEventListener('pointermove', onMove);
@@ -688,6 +1037,10 @@ function mount(els) {
   canvas.addEventListener('pointerleave', onLeave);
   els.exit.addEventListener('click', () => select(V.selected, { inspect: false }));
   els.stage.addEventListener('keydown', (e) => {
+    if (V.cinematic) {
+      if (e.key === 'Escape' || e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); skipCinematic(); }
+      return;
+    }
     if (e.key === 'ArrowLeft') { e.preventDefault(); select(V.selected - 1, { inspect: false }); }
     else if (e.key === 'ArrowRight') { e.preventDefault(); select(V.selected + 1, { inspect: false }); }
     else if (e.key === 'Enter' && e.target === els.stage && V.status[V.selected].kind !== 'locked') { e.preventDefault(); select(V.selected, { inspect: !V.inspect }); }
@@ -695,11 +1048,25 @@ function mount(els) {
   });
   new ResizeObserver(resize).observe(els.stage);
   observeVisibility();
+  progress(0.6, 'Casting the metals');
+  await nextFrame();
   V.ready = true;
-  els.vault.classList.add('ready');
-  els.loading.hidden = true;
   if (V.state) update(V.state, true);
   resize();
+  progress(0.85, 'Polishing the bullion');
+  await nextFrame();
+  // Compile every shader before the reveal, so the first frames don't stutter.
+  try { if (renderer.compileAsync) await renderer.compileAsync(scene, camera); } catch (e) { /* optional */ }
+  pipeline.composer.render(0.016);
+  progress(1, 'Ready');
+  // Reveal: start further back and let the camera glide in as the canvas fades up.
+  camOff.copy(camPos).add(new THREE.Vector3(0, 0.6, 2.8));
+  lookOff.copy(camLook);
+  V._camInit = true;
+  camX = camXTarget;
+  rig.position.x = camXTarget;
+  els.vault.classList.add('ready');
+  wake();
 }
 
 function update(state, first) {
@@ -707,9 +1074,11 @@ function update(state, first) {
   if (!V.ready) return;
   const changed = rebuild(state);
   if (first || (changed && V.firstDone !== true)) {
+    // Open on an alloy waiting to be forged, otherwise on your latest forged one.
     let cur = 0;
     V.status.forEach((s, i) => { if (s.kind === 'forged') cur = i; });
-    V.selected = cur;
+    const ready = V.status.findIndex((s) => s.kind === 'ready');
+    V.selected = ready >= 0 ? ready : cur;
     V.firstDone = true;
   }
   setCameraTargets();
@@ -724,4 +1093,8 @@ function setVisible(on) {
   updateRunning();
 }
 
-SF.vault3d = { mount, update, setVisible, debug: () => ({ quality: V.quality, selected: V.selected, running: V.running }) };
+SF.vault3d = {
+  mount, update, setVisible, forge: (i) => forgeCinematic(i),
+  setHandlers: (h) => { if (h && h.onForge) V.onForge = h.onForge; },
+  debug: () => ({ quality: V.quality, selected: V.selected, running: V.running, cinematic: CIN.active })
+};

@@ -1,8 +1,8 @@
 {
   "name": "studyforge",
-  "version": "2.4.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Forge Ingots from focused study time \u2014 a browser focus timer.",
+  "description": "Forge Ingots from focused study time — a browser focus timer.",
   "scripts": {
     "test": "node --test",
     "build:vault": "npm run build:3d",
@@ -12,6 +12,7 @@
     "@fontsource-variable/fraunces": "^5.3.0",
     "@fontsource-variable/inter-tight": "^5.3.0",
     "esbuild": "^0.24.0",
+    "gsap": "^3.15.0",
     "three": "^0.170.0",
     "three-bvh-csg": "^0.0.17",
     "three-mesh-bvh": "^0.8.3"

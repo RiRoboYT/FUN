@@ -14,6 +14,7 @@
       sessions: [],
       achievements: {},
       achievementsPaid: {},
+      forged: { bronze: Date.now() },
       equippedTitle: 'novice',
       lastSubject: 'Physics',
       lastMode: 'stopwatch',
@@ -48,6 +49,9 @@
     Object.keys(d.settings).forEach(function (k) {
       if (data.settings[k] === undefined) data.settings[k] = d.settings[k];
     });
+    // v3: alloys must be forged. Bronze is the starter; anything already reached
+    // waits as "ready to forge".
+    if (!data.forged) data.forged = { bronze: Date.now() };
     data.version = VERSION;
     return data;
   }

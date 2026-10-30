@@ -14,6 +14,7 @@ import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
 import { HeatHazeShader } from '../vault/effects.js';
 import { softboxTexture } from '../vault/textures.js';
 import { brickSurface, woodSurface, floorSurface, billetSurface } from './textures.js';
+import { ingotGeometry } from '../vault/geometry.js';
 
 const SF = window.SF;
 const L = SF.logic;
@@ -30,12 +31,18 @@ const F = {
   mounted: false, active: false, calm: false, running: false, dirty: true,
   snap: null, time: 0, acc: 0, lastIngots: null, cracks: -1,
   // Smoothed visual state, eased toward targets every frame.
-  temp: 20, coal: 0.15, exam: 0, rest: 0, legend: 0, quality: 1, slowFrames: 0
+  temp: 20, coal: 0.15, exam: 0, rest: 0, legend: 0, quality: 1, slowFrames: 0, fade: 0.1
 };
 let renderer, scene, camera, composer, bloom, haze, clock;
 let coals, flames, embers, sparks, steam, billet, billetMat, billetLight, hearthLight, examSpot, hammer, anvilTop, windowLight, hemi;
 const strike = { t: -1, impactDone: false };
 const tmpV = new THREE.Vector3();
+const BARREL_POS = new THREE.Vector3(3.4, 0, -0.8);
+// Finale state: the timeline, the finished ingot, steam and shattered chunks.
+const FIN = { tl: null, ingot: null, steam: null, chunks: [], spot: null, fill: null, lift: { v: 0 }, active: false, quenched: false };
+const FIN_METALS = {
+  bronze: 0xc9824f, silver: 0xe8e8ea, gold: 0xffc45c, platinum: 0xd8d3cb, mythril: 0xb4f2e4
+};
 const cam = { base: new THREE.Vector3(0, 2.15, 6.6), look: new THREE.Vector3(0, 1.3, -0.4), shake: 0 };
 
 // ---------- Helpers ----------
@@ -273,6 +280,87 @@ function sparkBurst() {
   return pts;
 }
 
+// Soft billowing steam for the quench (CPU simulated: it only lives for a couple of seconds).
+function steamBurst() {
+  const n = 80;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(n * 3), 3));
+  geo.setAttribute('life', new THREE.BufferAttribute(new Float32Array(n), 1));
+  const pts = new THREE.Points(geo, new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false,
+    uniforms: { uPixel: { value: 1 }, uTint: { value: new THREE.Color(0xdfe5ea) } },
+    vertexShader: /* glsl */`
+      attribute float life; uniform float uPixel; varying float vLife;
+      void main() {
+        vLife = life;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_Position = projectionMatrix * mv;
+        gl_PointSize = (60.0 + (1.0 - life) * 190.0) * uPixel / -mv.z;
+      }
+    `,
+    fragmentShader: /* glsl */`
+      uniform vec3 uTint; varying float vLife;
+      void main() {
+        float d = length(gl_PointCoord - 0.5);
+        float a = smoothstep(0.5, 0.0, d) * vLife * vLife * 0.32;
+        gl_FragColor = vec4(uTint, a);
+      }
+    `
+  }));
+  pts.userData = { vel: new Float32Array(n * 3), n, alive: 0 };
+  pts.frustumCulled = false;
+  return pts;
+}
+
+function puff(at, strength = 1, tint = 0xdfe5ea) {
+  const d = FIN.steam.userData;
+  const pos = FIN.steam.geometry.attributes.position, life = FIN.steam.geometry.attributes.life;
+  FIN.steam.material.uniforms.uTint.value.set(tint);
+  for (let i = 0; i < d.n; i++) {
+    pos.setXYZ(i, at.x + (Math.random() - 0.5) * 0.4, at.y + Math.random() * 0.1, at.z + (Math.random() - 0.5) * 0.3);
+    d.vel[i * 3] = (Math.random() - 0.5) * 0.7 * strength;
+    d.vel[i * 3 + 1] = (0.6 + Math.random() * 1.3) * strength;
+    d.vel[i * 3 + 2] = (Math.random() - 0.5) * 0.5 * strength;
+    life.setX(i, 0.6 + Math.random() * 0.4);
+  }
+  d.alive = 2.6;
+  pos.needsUpdate = life.needsUpdate = true;
+}
+
+function updateSteam(dt) {
+  if (!FIN.steam) return;
+  const d = FIN.steam.userData;
+  if (d.alive <= 0) return;
+  d.alive -= dt;
+  const pos = FIN.steam.geometry.attributes.position, life = FIN.steam.geometry.attributes.life;
+  for (let i = 0; i < d.n; i++) {
+    let l = life.getX(i);
+    if (l <= 0) continue;
+    d.vel[i * 3] *= 0.985; d.vel[i * 3 + 1] *= 0.975; d.vel[i * 3 + 2] *= 0.985;
+    pos.setXYZ(i, pos.getX(i) + d.vel[i * 3] * dt, pos.getY(i) + d.vel[i * 3 + 1] * dt, pos.getZ(i) + d.vel[i * 3 + 2] * dt);
+    life.setX(i, Math.max(0, l - dt * 0.42));
+  }
+  pos.needsUpdate = life.needsUpdate = true;
+}
+
+function updateChunks(dt) {
+  FIN.chunks.forEach((c) => {
+    if (c.userData.rest) return;
+    const v = c.userData.vel;
+    v.y -= 9.8 * dt;
+    c.position.addScaledVector(v, dt);
+    c.rotation.x += c.userData.spin.x * dt;
+    c.rotation.z += c.userData.spin.z * dt;
+    const floorY = Math.abs(c.position.x - ANVIL_POS.x) < 0.55 && Math.abs(c.position.z - ANVIL_POS.z) < 0.2 ? anvilTop + 0.03 : 0.03;
+    if (c.position.y < floorY) {
+      c.position.y = floorY;
+      v.y *= -0.25; v.x *= 0.5; v.z *= 0.5;
+      c.userData.spin.multiplyScalar(0.5);
+      if (Math.abs(v.y) < 0.2) c.userData.rest = true;
+    }
+  });
+}
+
 // ---------- Build ----------
 function build(container) {
   renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'low-power', stencil: false });
@@ -397,6 +485,16 @@ function build(container) {
   scene.add(hammer);
   sparks = sparkBurst();
   scene.add(sparks);
+  FIN.steam = steamBurst();
+  scene.add(FIN.steam);
+  FIN.spot = new THREE.SpotLight(0xfff1e0, 0, 8, 0.42, 0.55, 1.1);
+  FIN.spot.position.set(ANVIL_POS.x - 0.2, 4.2, ANVIL_POS.z + 1.4);
+  FIN.spot.target.position.set(ANVIL_POS.x - 0.08, anvilTop, ANVIL_POS.z);
+  scene.add(FIN.spot, FIN.spot.target);
+  // A warm front fill for the reveal so the finished ingot reads clearly behind the card.
+  FIN.fill = new THREE.PointLight(0xffd8b0, 0, 5, 1.4);
+  FIN.fill.position.set(ANVIL_POS.x + 0.6, anvilTop + 0.9, ANVIL_POS.z + 1.3);
+  scene.add(FIN.fill);
 
   // Lighting: the hearth (shadow-casting key), a cool window rim, faint ambient, exam spotlight.
   hemi = new THREE.HemisphereLight(0x2a3040, 0x0d0907, 0.6);
@@ -521,6 +619,7 @@ function targets() {
   const onBreak = s.mode === 'timer' && s.phase === 'break';
   const idle = s.status === 'paused' || s.status === 'ready';
   let temp = L.tempFromHeat(s.heatMin);
+  if (FIN.quenched) temp = 20;
   if (onBreak) temp = Math.min(temp, 380);       // the billet cools while you rest
   else if (idle) temp = Math.min(temp, Math.max(20, temp * 0.85));
   const heatNorm = Math.min(1, s.heatMin / 70);
@@ -578,7 +677,12 @@ function apply(dt, realDt) {
   windowLight.intensity = 4 + F.exam * 1.5 + F.rest * 1.5;
   hemi.intensity = 0.6 + F.rest * 0.2;
   hemi.color.setRGB(0.16 + F.exam * 0.05, 0.19 + F.exam * 0.06, 0.25 + F.exam * 0.12);
-  renderer.toneMappingExposure = 1.0 - F.exam * 0.12 - F.rest * 0.08;
+  // Ember-up: the room brightens over ~2 s when a session starts.
+  F.fade += (1 - F.fade) * (reducedMotion || F.calm ? 1 : 1 - Math.pow(0.18, dt));
+  const lift = FIN.lift.v;
+  renderer.toneMappingExposure = (1.0 - F.exam * 0.12 - F.rest * 0.08) * F.fade * (1 + lift * 0.55);
+  hemi.intensity += lift * 0.9;
+  if (FIN.fill) FIN.fill.intensity = lift * 9;
 
   // Heat haze over the coals (and over the billet when it's glowing).
   if (haze.enabled) {
@@ -607,6 +711,8 @@ function frame() {
   F.real = 0;
   updateStrike(step);
   updateSparks(step);
+  updateSteam(step);
+  updateChunks(step);
 
   // Billet squash on impact, gentle camera kick.
   const sq = billet.userData.squash || 0;
@@ -629,7 +735,7 @@ function frame() {
   steam.material.uniforms.uTime.value = u;
   haze.uniforms.uTime.value = u;
   const pr = renderer.getPixelRatio();
-  [embers, steam, sparks].forEach((p) => { p.material.uniforms.uPixel.value = pr; });
+  [embers, steam, sparks, FIN.steam].forEach((p) => { p.material.uniforms.uPixel.value = pr; });
 
   composer.render(step);
 
@@ -645,6 +751,134 @@ function frame() {
   } else {
     F.slowFrames = Math.max(0, F.slowFrames - 1);
   }
+}
+
+// ---------- v3 finale ----------
+const BILLET_HOME = new THREE.Vector3();
+const CAM_HOME = { base: new THREE.Vector3(), look: new THREE.Vector3() };
+
+function finishedIngot(alloyId, dull) {
+  const g = ingotGeometry();
+  const mat = new THREE.MeshPhysicalMaterial({
+    color: FIN_METALS[alloyId] || FIN_METALS.bronze, metalness: 1, roughness: dull ? 0.62 : 0.2,
+    clearcoat: dull ? 0 : 0.3, clearcoatRoughness: 0.2,
+    emissive: new THREE.Color(1, 0.35, 0.08), emissiveIntensity: 0
+  });
+  if (alloyId === 'mythril') Object.assign(mat, { iridescence: 1, iridescenceIOR: 1.8 });
+  const m = new THREE.Mesh(g, mat);
+  m.scale.setScalar(0.4);
+  m.castShadow = true;
+  return m;
+}
+
+function resetFinale() {
+  if (FIN.tl) { FIN.tl.kill(); FIN.tl = null; }
+  if (FIN.ingot) { scene.remove(FIN.ingot); FIN.ingot.geometry.dispose(); FIN.ingot.material.dispose(); FIN.ingot = null; }
+  FIN.chunks.forEach((c) => { scene.remove(c); c.geometry.dispose(); });
+  FIN.chunks = [];
+  FIN.quenched = false;
+  FIN.active = false;
+  if (BILLET_HOME.lengthSq()) {
+    billet.position.copy(BILLET_HOME);
+    billet.rotation.set(0, 0.12, 0);
+    billet.visible = true;
+    cam.base.copy(CAM_HOME.base);
+    cam.look.copy(CAM_HOME.look);
+  }
+  if (FIN.spot) FIN.spot.intensity = 0;
+  FIN.lift.v = 0;
+}
+
+/**
+ * The end of a session, played in the forge: quench and reveal ('complete' / 'unfinished'),
+ * or the billet cracking apart ('fail'). Timed to sit under the finale card's ~7 s sequence.
+ */
+function finale(kind, alloyId) {
+  const gsap = window.gsap;
+  if (!F.mounted || !gsap) return false;
+  resetFinale();
+  if (!BILLET_HOME.lengthSq()) {
+    BILLET_HOME.copy(billet.position);
+    CAM_HOME.base.copy(cam.base);
+    CAM_HOME.look.copy(cam.look);
+  }
+  FIN.active = true;
+  F.dirty = true;
+  const tl = gsap.timeline({ onUpdate: () => { F.dirty = true; } });
+  FIN.tl = tl;
+  // Frame the anvil and the quench barrel on the right of the screen.
+  tl.to(cam.base, { x: 1.2, y: 1.7, z: 3.5, duration: 1.4, ease: 'power2.inOut' }, 0)
+    .to(cam.look, { x: 2.75, y: 0.95, z: -0.3, duration: 1.4, ease: 'power2.inOut' }, 0);
+
+  if (kind === 'fail') {
+    tl.to(billetMat, { emissiveIntensity: 9, duration: 0.12, yoyo: true, repeat: 5, ease: 'none' }, 1.0)
+      .call(() => {
+        billet.visible = false;
+        const pieces = 6;
+        for (let i = 0; i < pieces; i++) {
+          const c = new THREE.Mesh(new RoundedBoxGeometry(0.72 / pieces * (0.8 + Math.random() * 0.4), 0.09, 0.12, 2, 0.01), billetMat);
+          c.position.set(billet.position.x - 0.36 + (i + 0.5) * 0.72 / pieces, billet.position.y, billet.position.z);
+          c.rotation.y = billet.rotation.y;
+          c.castShadow = true;
+          c.userData = {
+            vel: new THREE.Vector3((Math.random() - 0.5) * 1.6, 1 + Math.random() * 1.6, (Math.random() - 0.2) * 1.2),
+            spin: new THREE.Vector3((Math.random() - 0.5) * 9, 0, (Math.random() - 0.5) * 9)
+          };
+          scene.add(c);
+          FIN.chunks.push(c);
+        }
+        burst(billet.position.clone());
+        puff(billet.position.clone(), 0.6, 0x6b5f57);
+        if (SF.sound) SF.sound.play('crack');
+      }, null, 1.75)
+      .call(() => { FIN.quenched = true; }, null, 2.6)
+      .to(FIN.lift, { v: 0.45, duration: 1.2, ease: 'power2.out' }, 2.6);
+    return true;
+  }
+
+  const lift = billet.position.y + 0.5;
+  const over = new THREE.Vector3(BARREL_POS.x, 1.35, BARREL_POS.z);
+  // The finished ingot exists from the start (hidden), so the whole sequence is one timeline.
+  const ing = finishedIngot(alloyId, kind === 'unfinished');
+  ing.position.set(BARREL_POS.x, 0.4, BARREL_POS.z);
+  ing.rotation.set(0, 1.2, -0.4);
+  ing.visible = false;
+  scene.add(ing);
+  FIN.ingot = ing;
+  FIN.kind = kind;
+
+  tl.to(billet.position, { y: lift, duration: 0.5, ease: 'power2.out' }, 1.0)
+    .to(billet.rotation, { z: 0.15, duration: 0.5 }, 1.0)
+    .to(billet.position, { x: over.x, z: over.z, y: over.y, duration: 0.55, ease: 'power2.inOut' }, 1.5)
+    .to(billet.rotation, { z: -0.6, y: 1.2, duration: 0.55, ease: 'power2.inOut' }, 1.5)
+    .to(billet.position, { y: 0.42, duration: 0.22, ease: 'power3.in' }, 2.05)
+    .call(() => {
+      FIN.quenched = true;
+      F.temp = 20;
+      puff(new THREE.Vector3(BARREL_POS.x, 0.62, BARREL_POS.z), 1.2);
+      if (SF.sound) SF.sound.play('quench');
+    }, null, 2.25)
+    .call(() => { billet.visible = false; ing.visible = true; }, null, 2.5)
+    // Out of the steam, over to the anvil, settle under the spotlight, then a slow turn.
+    .to(ing.position, { y: 1.45, duration: 0.7, ease: 'power2.out' }, 2.6)
+    .to(ing.rotation, { z: 0, x: 0, duration: 0.7, ease: 'power2.out' }, 2.6)
+    .to(ing.position, { x: ANVIL_POS.x - 0.1, z: ANVIL_POS.z + 0.02, duration: 0.6, ease: 'power2.inOut' }, 3.3)
+    .to(ing.position, { y: anvilTop + 0.002, duration: 0.35, ease: 'bounce.out' }, 3.85)
+    .to(ing.rotation, { y: 0.35, duration: 0.95, ease: 'power2.inOut' }, 3.3)
+    .to(FIN.spot, { intensity: kind === 'unfinished' ? 30 : 70, duration: 0.8, ease: 'power2.out' }, 3.8)
+    .to(FIN.lift, { v: kind === 'unfinished' ? 0.6 : 1, duration: 1.2, ease: 'power2.out' }, 3.6)
+    .to(ing.rotation, { y: 0.35 + Math.PI * 0.35, duration: 6, ease: 'sine.inOut' }, 4.3);
+  return true;
+}
+
+// Jump to the end state without replaying sounds or bursts.
+function finaleSkip() {
+  if (!FIN.tl) return;
+  FIN.tl.progress(1, true);
+  FIN.quenched = true;
+  F.temp = 20;
+  if (FIN.ingot) { billet.visible = false; FIN.ingot.visible = true; }
+  F.dirty = true;
 }
 
 // ---------- Size & lifecycle ----------
@@ -704,7 +938,10 @@ function update(snap) {
     billetMat.needsUpdate = true;
   }
   // A strike for every whole Ingot earned while you're actually studying.
-  if (F.lastIngots == null || !prev || prev.sessionId !== snap.sessionId) F.lastIngots = snap.ingots;
+  if (F.lastIngots == null || !prev || prev.sessionId !== snap.sessionId) {
+    F.lastIngots = snap.ingots;
+    if (FIN.active || FIN.quenched) resetFinale();
+  }
   if (snap.ingots > F.lastIngots) {
     F.lastIngots = snap.ingots;
     if (snap.status === 'running') startStrike();
@@ -714,6 +951,7 @@ function update(snap) {
 }
 
 function setActive(on) {
+  if (on && !F.active) F.fade = 0.1;
   F.active = on;
   if (on) F.dirty = true;
   updateRunning();
@@ -724,4 +962,4 @@ function setCalm(on) {
   F.dirty = true;
 }
 
-SF.forge3d = { mount, update, setActive, setCalm, strike: startStrike };
+SF.forge3d = { mount, update, setActive, setCalm, strike: startStrike, finale, finaleSkip };

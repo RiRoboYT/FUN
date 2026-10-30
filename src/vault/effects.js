@@ -21,18 +21,20 @@ export function moltenMaterial(color) {
     uniforms: {
       uTime: { value: 0 },
       uTint: { value: new THREE.Color(color) },
-      uHeat: { value: 1 }
+      uHeat: { value: 1 },
+      uCool: { value: 0 },
+      uFlow: { value: new THREE.Vector2(0, 0) }
     },
     vertexShader: /* glsl */`
       varying vec2 vUv;
       void main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }
     `,
     fragmentShader: /* glsl */`
-      uniform float uTime; uniform vec3 uTint; uniform float uHeat;
+      uniform float uTime; uniform vec3 uTint; uniform float uHeat; uniform float uCool; uniform vec2 uFlow;
       varying vec2 vUv;
       ${NOISE}
       void main() {
-        vec2 p = vUv * vec2(6.0, 3.1);
+        vec2 p = vUv * vec2(6.0, 3.1) + uFlow * uTime;
         float t = uTime * 0.12;
         // Slow convection: domain-warped noise drifting across the surface.
         vec2 warp = vec2(fbm(p + vec2(t, 0.0)), fbm(p + vec2(0.0, -t) + 4.3));
@@ -48,7 +50,12 @@ export function moltenMaterial(color) {
         vec2 e = min(vUv, 1.0 - vUv) * vec2(1.6, 3.0);
         float edge = 1.0 - smoothstep(0.0, 0.12, min(e.x, e.y));
         col += vec3(1.0, 0.45, 0.1) * edge * 0.8;
-        gl_FragColor = vec4(col * (2.4 + 0.3 * uHeat), 1.0);
+        col *= (2.4 + 0.3 * uHeat);
+        // Cooling: the glow sinks into the crust, then the surface sets as dull solid metal.
+        float c1 = smoothstep(0.0, 0.6, uCool), c2 = smoothstep(0.45, 1.0, uCool);
+        col = mix(col, col * vec3(0.55, 0.25, 0.12) * (1.0 - crust), c1);
+        col = mix(col, uTint * (0.22 + 0.1 * n), c2);
+        gl_FragColor = vec4(col, 1.0);
       }
     `
   });
