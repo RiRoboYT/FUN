@@ -205,7 +205,7 @@ test('applyResult records session, streak, ingots and achievements', () => {
   assert.equal(state.sessions.length, 1);
   assert.equal(state.streak.count, 1);
   assert.ok(r.ingots.total >= 9);
-  assert.equal(state.totalIngots, r.ingots.total);
+  assert.equal(state.totalIngots, r.ingots.total + r.achievementIngots, "session Ingots plus achievement rewards");
   assert.ok(r.newAchievements.includes('first_ingot'));
   assert.ok(r.newAchievements.includes('blazing_session'));
 });
