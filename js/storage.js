@@ -27,6 +27,7 @@
         notifications: true,
         fxCursor: true,
         fxRadio: true,
+        calmForge: false,
         radioSource: 'ambient',
         ambientTrack: 0,
         ambientVolume: 40,

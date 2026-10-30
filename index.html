@@ -8,6 +8,7 @@
   <meta name="theme-color" content="#14110f">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
   <link rel="manifest" href="manifest.webmanifest">
+  <link rel="preload" href="fonts/InterTight-var.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -126,54 +127,51 @@
     </section>
 
     <!-- ============ SESSION ============ -->
-    <section class="view session" id="view-session" hidden aria-label="Forging session" data-stage="cold">
-      <time class="wall-clock" id="sess-clock" title="Current time"></time>
-      <div class="session-head">
-        <span class="pill" id="sess-mode">Stopwatch</span>
-        <span class="sess-subject" id="sess-subject">Physics</span>
-        <span class="pill phase" id="sess-phase" hidden>Work</span>
-        <span class="pill strict" id="sess-strict" hidden>Strict</span>
-      </div>
+    <section class="view session" id="view-session" hidden aria-label="Forging session" data-stage="cold" data-mode="stopwatch">
+      <!-- The live 3D forge (js/scene3d.js) renders here, behind everything. -->
+      <div class="forge-stage" id="forge-stage" aria-hidden="true"></div>
+      <div class="room-glow" aria-hidden="true"></div>
 
-      <div class="timer" id="sess-timer" role="timer" aria-live="off">00:00</div>
-      <div class="timer-label" id="sess-timer-label">Ready to forge</div>
+      <header class="session-strip">
+        <div class="strip-left">
+          <span class="pill" id="sess-mode">Stopwatch</span>
+          <span class="sess-subject" id="sess-subject">Physics</span>
+          <span class="pill phase" id="sess-phase" hidden>Work</span>
+          <span class="pill strict" id="sess-strict" hidden>Strict</span>
+        </div>
+        <div class="strip-right">
+          <span class="now-playing" id="sess-np" hidden></span>
+          <time class="wall-clock" id="sess-clock" title="Current time"></time>
+        </div>
+      </header>
+
+      <div class="dial" id="heat-meter" role="meter" aria-label="Forge temperature" aria-valuemin="20" aria-valuemax="1538" aria-valuenow="20">
+        <svg class="heat-ring" viewBox="0 0 240 240" aria-hidden="true">
+          <circle class="ring-track" cx="120" cy="120" r="108"/>
+          <circle class="ring-fill" id="ring-fill" cx="120" cy="120" r="108"/>
+          <g id="ring-marks"></g>
+        </svg>
+        <div class="dial-center">
+          <div class="timer" id="sess-timer" role="timer" aria-live="off">00:00</div>
+          <div class="timer-label" id="sess-timer-label">Ready to forge</div>
+          <div class="temp"><span id="sess-temp">20</span><span class="temp-unit">°C</span><span class="temp-stage" id="heat-stage">Cold</span></div>
+        </div>
+      </div>
 
       <div class="ofs-banner" id="ofs-banner" hidden>
         <div><span class="muted">Open for Study:</span> <b id="ofs-label"></b></div>
         <button class="btn" id="ofs-back">I'm back — resume</button>
       </div>
 
-      <div class="counters">
-        <div class="counter c-studied"><span class="c-label">Studied</span><span class="c-val" id="cnt-studied">00:00</span></div>
-        <div class="counter c-intentional"><span class="c-label">Intentional</span><span class="c-val" id="cnt-intentional">00:00</span></div>
-        <div class="counter c-distracted"><span class="c-label">Distracted</span><span class="c-val" id="cnt-distracted">00:00</span></div>
-      </div>
-
-      <div class="forge">
-        <div class="forge-visual" aria-hidden="true">
-          <div class="embers"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
-          <div class="ingot-hot">
-            <svg class="cracks" viewBox="0 0 200 60" preserveAspectRatio="none">
-              <path class="crack crack-1" d="M40 0 L52 18 L46 30 L60 46 L56 60"/>
-              <path class="crack crack-2" d="M120 0 L112 14 L124 26 L116 40"/>
-              <path class="crack crack-3" d="M160 60 L150 44 L162 32 L154 20"/>
-            </svg>
-          </div>
-          <svg class="anvil" viewBox="0 0 64 64"><use href="#anvil"/></svg>
+      <div class="split" aria-label="Session time split">
+        <div class="split-bar" aria-hidden="true">
+          <span class="seg s" id="seg-s"></span><span class="seg i" id="seg-i"></span><span class="seg d" id="seg-d"></span>
         </div>
-        <div class="heat">
-          <div class="heat-head">
-            <span>Forge heat: <b id="heat-stage">Cold</b></span>
-            <span class="muted" id="heat-meta">1.0x · Ingots this session: 0</span>
-          </div>
-          <div class="heat-track" role="meter" aria-label="Forge heat" aria-valuemin="0" aria-valuemax="90" aria-valuenow="0" id="heat-meter">
-            <div class="heat-fill" id="heat-fill"></div>
-            <span class="heat-mark" style="left:5.56%" title="Warm"></span>
-            <span class="heat-mark" style="left:16.67%" title="Hot"></span>
-            <span class="heat-mark" style="left:44.44%" title="Blazing"></span>
-            <span class="heat-mark" style="left:77.78%" title="Legendary"></span>
-          </div>
-          <div class="heat-scale muted"><span>Cold</span><span>Warm</span><span>Hot</span><span>Blazing</span><span>Legendary</span></div>
+        <div class="split-legend">
+          <span class="lg-item s">Studied <b id="cnt-studied">00:00</b></span>
+          <span class="lg-item i">Intentional <b id="cnt-intentional">00:00</b></span>
+          <span class="lg-item d">Distracted <b id="cnt-distracted">00:00</b></span>
+          <span class="lg-item meta" id="heat-meta">1.0x · 0 Ingots</span>
         </div>
       </div>
 
@@ -283,6 +281,7 @@
         <label class="toggle"><input type="checkbox" name="notifications"><span>Desktop notifications (when an Open for Study window or timer phase ends)</span></label>
         <h2 class="card-title settings-sub">Effects</h2>
         <label class="toggle"><input type="checkbox" name="fxCursor"><span>Interactive cursor and magnetic buttons</span></label>
+        <label class="toggle"><input type="checkbox" name="calmForge"><span>Calm forge — show the session forge as a still scene (saves battery on older laptops)</span></label>
         <label class="toggle"><input type="checkbox" name="fxRadio"><span>Forge Radio (ambient sounds and YouTube Music player)</span></label>
         <div class="row">
           <button class="btn btn-primary" type="submit">Save settings</button>
@@ -460,7 +459,7 @@
   <script src="js/ui.js"></script>
   <script src="js/fx.js"></script>
   <script src="js/radio.js"></script>
-  <script src="js/vault.js"></script>
+  <script src="js/scene3d.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

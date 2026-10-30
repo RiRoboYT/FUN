@@ -57,6 +57,7 @@
     });
     doc.body.classList.toggle('in-session', name === 'session');
     root.SF.vault.setVisible(name === 'hall');
+    root.SF.forge.setActive(name === 'session');
     renderView();
     root.scrollTo(0, 0);
   }
@@ -583,6 +584,7 @@
       st.smithName = f.smithName.value.trim().slice(0, 24);
       st.fxCursor = f.fxCursor.checked;
       st.fxRadio = f.fxRadio.checked;
+      st.calmForge = f.calmForge.checked;
       applyEffects();
       sound.setEnabled(st.sound);
       if (st.notifications) maybeAskNotifications();
@@ -627,6 +629,7 @@
     var st = state.settings;
     root.SF.fx.configure({ cursor: st.fxCursor });
     root.SF.radio.setEnabled(st.fxRadio);
+    root.SF.forge.setCalm(st.calmForge);
   }
 
   function boot() {

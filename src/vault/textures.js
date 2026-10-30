@@ -1,7 +1,7 @@
 // Procedural surface textures, generated once on a canvas: no image files, so it works offline.
 import * as THREE from 'three';
 
-function canvas(w, h) {
+export function canvas(w, h) {
   const c = document.createElement('canvas');
   c.width = w;
   c.height = h;
@@ -20,7 +20,7 @@ export function rng(seed) {
 }
 
 // Multi-octave value noise painted by upscaling random tiles with smoothing.
-function paintNoise(g, w, h, rand, octaves, contrast) {
+export function paintNoise(g, w, h, rand, octaves, contrast) {
   const tmp = canvas(4, 4);
   const tg = tmp.getContext('2d');
   g.imageSmoothingEnabled = true;
@@ -42,7 +42,7 @@ function paintNoise(g, w, h, rand, octaves, contrast) {
 }
 
 // Height field (grey = 128) -> tangent-space normal map using a Sobel filter.
-function heightToNormal(src, strength) {
+export function heightToNormal(src, strength) {
   const w = src.width, h = src.height;
   const data = src.getContext('2d').getImageData(0, 0, w, h).data;
   const out = canvas(w, h);
@@ -66,7 +66,7 @@ function heightToNormal(src, strength) {
   return out;
 }
 
-function tex(c, color, anisotropy) {
+export function tex(c, color, anisotropy) {
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = color ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.anisotropy = anisotropy || 8;

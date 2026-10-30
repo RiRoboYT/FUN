@@ -480,6 +480,64 @@
     return { days: days, subjects: subjects, distractions: distractions, totals: totals };
   }
 
+  // ---------- Forge temperature ----------
+  // Heat minutes -> metal temperature in °C. Calibrated so the stages read like real
+  // forging colours: Warm is a dull red glow, Hot orange, Blazing yellow, Legendary near white.
+  var TEMP_CURVE = [[0, 20], [5, 560], [15, 880], [40, 1120], [70, 1380], [90, 1538]];
+  var MAX_TEMP = 1538; // iron melts here
+  var TEMP_MARKS = [{ label: 'Ag', name: 'Silver melts', c: 962 }, { label: 'Au', name: 'Gold melts', c: 1064 }];
+
+  function tempFromHeat(heatMin) {
+    var c = TEMP_CURVE;
+    if (heatMin <= 0) return c[0][1];
+    for (var i = 1; i < c.length; i++) {
+      if (heatMin <= c[i][0]) {
+        var t = (heatMin - c[i - 1][0]) / (c[i][0] - c[i - 1][0]);
+        return c[i - 1][1] + t * (c[i][1] - c[i - 1][1]);
+      }
+    }
+    return MAX_TEMP;
+  }
+
+  // Approximate blackbody colour (Tanner Helland's fit), returns [r, g, b] in 0..1.
+  function blackbody(celsius) {
+    var k = (celsius + 273.15) / 100;
+    var r, g, b;
+    if (k <= 66) {
+      r = 255;
+      g = 99.4708025861 * Math.log(k) - 161.1195681661;
+      b = k <= 19 ? 0 : 138.5177312231 * Math.log(k - 10) - 305.0447927307;
+    } else {
+      r = 329.698727446 * Math.pow(k - 60, -0.1332047592);
+      g = 288.1221695283 * Math.pow(k - 60, -0.0755148492);
+      b = 255;
+    }
+    function c(v) { return Math.max(0, Math.min(255, v)) / 255; }
+    return [c(r), c(g), c(b)];
+  }
+
+  // The colour people *read* as that heat (dull red -> orange -> yellow -> white -> blue-white).
+  // Pure blackbody is still orange at 1500 °C; brightness is what makes it look white.
+  var HEAT_PALETTE = [[20, [0.42, 0.40, 0.38]], [480, [0.45, 0.12, 0.05]], [700, [0.78, 0.2, 0.06]],
+    [900, [1.0, 0.42, 0.1]], [1100, [1.0, 0.7, 0.28]], [1300, [1.0, 0.9, 0.66]], [1450, [0.86, 0.93, 1.0]], [1538, [0.74, 0.86, 1.0]]];
+  function heatColor(celsius) {
+    var p = HEAT_PALETTE;
+    if (celsius <= p[0][0]) return p[0][1].slice();
+    for (var i = 1; i < p.length; i++) {
+      if (celsius <= p[i][0]) {
+        var t = (celsius - p[i - 1][0]) / (p[i][0] - p[i - 1][0]);
+        return [0, 1, 2].map(function (k) { return p[i - 1][1][k] + t * (p[i][1][k] - p[i - 1][1][k]); });
+      }
+    }
+    return p[p.length - 1][1].slice();
+  }
+
+  // How visibly the metal glows at this temperature (0 below ~500 °C, 1 near white heat).
+  function glowAmount(celsius) {
+    var t = Math.max(0, Math.min(1, (celsius - 480) / (1450 - 480)));
+    return t * t * (3 - 2 * t);
+  }
+
   function formatClock(ms) {
     var total = Math.max(0, Math.floor(ms / 1000));
     var h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
@@ -536,6 +594,12 @@
     subjectTotals: subjectTotals,
     topSubject: topSubject,
     formatClock: formatClock,
+    MAX_TEMP: MAX_TEMP,
+    TEMP_MARKS: TEMP_MARKS,
+    tempFromHeat: tempFromHeat,
+    blackbody: blackbody,
+    heatColor: heatColor,
+    glowAmount: glowAmount,
     formatMinutes: formatMinutes
   };
 

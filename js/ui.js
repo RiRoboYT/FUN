@@ -247,12 +247,21 @@
     setCounter('cnt-intentional', s.intentional);
     setCounter('cnt-distracted', s.distracted);
 
-    $('heat-stage').textContent = stage.name;
-    $('heat-fill').style.width = (L.heatFill(heat) * 100) + '%';
-    $('heat-meter').setAttribute('aria-valuenow', String(Math.round(heat)));
-    $('heat-meter').setAttribute('aria-valuetext', stage.name);
-    $('heat-meta').textContent = stage.mult.toFixed(2).replace(/0$/, '') + 'x · Ingots so far: ' +
-      Math.floor(s.ingotAccum) + (s.bonusIngots ? ' (+' + s.bonusIngots + ' bonus)' : '');
+    renderHeat(s, view, stage, heat);
+    renderSplit(s);
+
+    var np = $('sess-np');
+    var radio = $('radio');
+    var playing = radio && !radio.hidden && radio.classList.contains('playing');
+    np.hidden = !playing;
+    if (playing) np.textContent = $('radio-name').textContent.replace(/^♪\s*/, '♪ ');
+
+    if (root.SF.forge) {
+      root.SF.forge.update({
+        sessionId: s.id, heatMin: heat, stage: S.stageOf(s), cracks: s.cracks, mode: s.mode,
+        phase: s.phase, status: s.status, ingots: Math.floor(s.ingotAccum)
+      });
+    }
 
     var toggle = $('ctl-toggle');
     toggle.hidden = s.mode === 'exam' && s.status !== 'ready';
@@ -271,6 +280,80 @@
     fs.querySelector('.lbl-text').textContent = fsText;
     fs.setAttribute('aria-label', fsText);
     setIcon(fs, doc.fullscreenElement ? 'i-shrink' : 'i-expand');
+  }
+
+  // ---------- Heat ring & split bar ----------
+  var RING_C = 2 * Math.PI * 108;
+  var ringMarksBuilt = false;
+
+  function buildRingMarks() {
+    var g = $('ring-marks');
+    var NS = 'http://www.w3.org/2000/svg';
+    L.TEMP_MARKS.forEach(function (m) {
+      var a = (m.c / L.MAX_TEMP) * Math.PI * 2 - Math.PI / 2;
+      var x1 = 120 + Math.cos(a) * 99, y1 = 120 + Math.sin(a) * 99;
+      var x2 = 120 + Math.cos(a) * 117, y2 = 120 + Math.sin(a) * 117;
+      var line = doc.createElementNS(NS, 'line');
+      line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+      line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+      line.setAttribute('class', 'ring-mark');
+      var t = doc.createElementNS(NS, 'text');
+      t.setAttribute('x', 120 + Math.cos(a) * 129);
+      t.setAttribute('y', 120 + Math.sin(a) * 129 + 3);
+      t.setAttribute('class', 'ring-label');
+      t.setAttribute('text-anchor', 'middle');
+      t.textContent = m.label + ' ' + m.c + '°';
+      var title = doc.createElementNS(NS, 'title');
+      title.textContent = m.name + ' at ' + m.c + ' °C';
+      line.appendChild(title);
+      g.appendChild(line);
+      g.appendChild(t);
+    });
+    ringMarksBuilt = true;
+  }
+
+  function renderHeat(s, view, stage, heat) {
+    if (!ringMarksBuilt) buildRingMarks();
+    var temp = L.tempFromHeat(heat);
+    var glow = L.glowAmount(temp);
+    var bb = L.heatColor(temp);
+    var onBreak = s.mode === 'timer' && s.phase === 'break';
+    var frac, color;
+    if (s.mode === 'exam') {
+      // Exam: the ring is the countdown.
+      frac = Math.max(0, 1 - s.examElapsed / s.config.examMs);
+      color = '#dfe7f2';
+    } else if (onBreak) {
+      frac = Math.max(0, 1 - s.phaseElapsed / s.config.breakMs);
+      color = '#8fb4e8';
+    } else {
+      frac = temp / L.MAX_TEMP;
+      color = glow > 0.04 ? 'rgb(' + bb.map(function (v) { return Math.round(v * 255); }).join(',') + ')' : '#7d766e';
+    }
+    view.dataset.mode = s.mode === 'timer' && onBreak ? 'break' : s.mode;
+    view.style.setProperty('--heat-rgb', bb.map(function (v) { return Math.round(v * 255); }).join(','));
+    view.style.setProperty('--heat-glow', glow.toFixed(3));
+    view.style.setProperty('--ring-color', color);
+    var ring = $('ring-fill');
+    ring.style.strokeDasharray = RING_C.toFixed(1);
+    ring.style.strokeDashoffset = (RING_C * (1 - frac)).toFixed(1);
+
+    $('sess-temp').textContent = Math.round(temp).toLocaleString();
+    $('heat-stage').textContent = stage.name;
+    var meter = $('heat-meter');
+    meter.setAttribute('aria-valuenow', String(Math.round(temp)));
+    meter.setAttribute('aria-valuetext', Math.round(temp) + ' degrees Celsius, ' + stage.name);
+    $('heat-meta').textContent = stage.mult.toFixed(2).replace(/0$/, '') + 'x · ' + Math.floor(s.ingotAccum) + ' Ingots' +
+      (s.bonusIngots ? ' (+' + s.bonusIngots + ' bonus)' : '');
+  }
+
+  function renderSplit(s) {
+    var total = s.studied + s.intentional + s.distracted;
+    var pct = function (v) { return total ? (v / total * 100).toFixed(2) + '%' : '0%'; };
+    $('seg-s').style.width = total ? pct(s.studied) : '100%';
+    $('seg-s').classList.toggle('empty', !total);
+    $('seg-i').style.width = pct(s.intentional);
+    $('seg-d').style.width = pct(s.distracted);
   }
 
   function setIcon(btn, id) {
@@ -579,7 +662,7 @@
     var f = $('settings-form');
     var st = state.settings;
     ['workMin', 'breakMin', 'examMin', 'streakMinMin', 'smithName'].forEach(function (k) { f.elements[k].value = st[k]; });
-    ['strictExam', 'sound', 'notifications', 'fxCursor', 'fxRadio'].forEach(function (k) { f.elements[k].checked = !!st[k]; });
+    ['strictExam', 'sound', 'notifications', 'fxCursor', 'fxRadio', 'calmForge'].forEach(function (k) { f.elements[k].checked = !!st[k]; });
   }
 
   // ---------- Dialogs ----------

@@ -2,7 +2,7 @@
 
 | File | What it is |
 |---|---|
-| `vault3d.bundle.js` | The Vault (3D alloy showroom), built from `src/vault/` with esbuild |
+| `studyforge3d.bundle.js` | The Vault (Forge Hall) and the live session forge, built from `src/` with esbuild |
 
 The bundle contains, all MIT-licensed (see the `*.LICENSE` files):
 
@@ -20,7 +20,7 @@ Rebuild after editing `src/vault/`:
 
 ```
 npm install
-npm run build:vault
+npm run build:3d
 ```
 
-`js/vault.js` loads the bundle on demand, the first time the Forge Hall is opened.
+`js/scene3d.js` loads the bundle on demand, the first time the Forge Hall or a session is opened.

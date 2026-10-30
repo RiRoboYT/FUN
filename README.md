@@ -4,6 +4,18 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v2.4 — the live forge
+
+The session screen is now set in a smithy. It's a fixed, cinematic 3D backdrop rendered with three.js. You don't interact with it; it reacts to how you study.
+
+- **The billet heats as you study.** It goes from cold steel through dull red, orange and yellow to white, then blue-white at Legendary, with the coals and flames following. Distraction cools it, and cracks appear in the metal.
+- **A hammer strike for every Ingot:** the hammer swings in, sparks fly and the anvil rings.
+- **Heat ring with temperature:** a ring around the timer fills from 20 °C to 1,538 °C (iron's melting point), with silver (962 °C) and gold (1,064 °C) marked.
+- **The room warms with you:** an ember glow rises from the bottom of the screen as the heat builds.
+- **A look for each mode:** the warm smithy for Stopwatch and Study Timer. On breaks the forge banks down: the coals dim, the billet cools and steam rises, and the ring counts the break down in blue. In the **Exam Timer** the scene goes cold and stark under a single overhead spotlight, and the ring becomes the countdown.
+- **Cleaner layout and type:** the timer uses Inter Tight and headings use Fraunces, both bundled in `fonts/` (SIL Open Font License). A single glass split bar replaces the three counter boxes. A top strip shows the subject, the clock and Forge Radio's now playing.
+- **Built for long sessions:** it renders at 30 fps below native resolution, pauses whenever you switch tabs, and lowers its own quality if your PC struggles. **Settings → Effects → Calm forge** shows it as a still scene that only redraws when the heat changes.
+
 ## What's new in v2.3.1 — The Vault, rebuilt
 
 The Forge Hall's **Vault** is a real-time 3D product shot of your alloys, built with
@@ -89,18 +101,20 @@ js/ui.js        rendering
 js/app.js       controller: events, keyboard, notifications, recovery
 js/fx.js        v2 cursor, magnetic buttons, hover glow, click sparks
 js/radio.js     v2 Forge Radio (ambient + YouTube embedded player)
-js/vault.js     loads the Vault bundle on demand (2D fallback without WebGL 2)
+js/scene3d.js   loads the 3D bundle on demand for the Vault and the session forge (2D fallback without WebGL 2)
 src/vault/      Vault source (ES modules): scene, geometry, procedural textures, effects, post-processing
-vendor/         vault3d.bundle.js built from src/vault with esbuild (npm run build:vault)
+src/forge/      session forge source: smithy scene, coals, billet, hammer, per-mode looks
+vendor/         studyforge3d.bundle.js built from src/ with esbuild (npm run build:3d)
+fonts/          Inter Tight and Fraunces (variable, Latin), SIL Open Font License
 sw.js           offline cache
 tools/serve.ps1 tiny local web server used by "Start StudyForge.bat"
 v1/             the original v1 app, unchanged
 ```
 
-Rebuild the 3D Vault after editing `src/vault/` (needs `npm install` once):
+Rebuild the 3D scenes after editing `src/` (needs `npm install` once):
 
 ```
-npm run build:vault
+npm run build:3d
 ```
 
 Run the unit tests (Node 18+, no install needed):
