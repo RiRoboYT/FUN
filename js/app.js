@@ -59,6 +59,7 @@
     });
     doc.body.classList.toggle('in-session', name === 'session');
     root.SF.vault.setVisible(name === 'hall');
+    if (name !== 'shop') root.SF.forge.showroomOff();
     root.SF.forge.setActive(name === 'session');
     renderView();
     root.scrollTo(0, 0);

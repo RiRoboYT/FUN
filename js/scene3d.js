@@ -104,18 +104,20 @@
 
   // ---------- Forge (session screen) ----------
   var forge = { active: false, snap: null, calm: false, api: null, failed: false };
-  var brightness = 1, skins = null;
+  var brightness = 1, skins = null, waiters = [];
+  function flush(api) { var w = waiters; waiters = []; w.forEach(function (cb) { cb(api); }); }
 
   function forgeStart() {
     if (forge.api || forge.failed) return;
     load(function (ok) {
       var stage = doc.getElementById('forge-stage');
-      if (!ok) { forge.failed = true; doc.body.classList.add('no3d-forge'); return; }
+      if (!ok) { forge.failed = true; doc.body.classList.add('no3d-forge'); flush(null); return; }
       if (forge.api) return;
       try { root.SF.forge3d.mount(stage); } catch (e) {
         console.error(e);
         forge.failed = true;
         doc.body.classList.add('no3d-forge');
+        flush(null);
         return;
       }
       forge.api = root.SF.forge3d;
@@ -125,6 +127,7 @@
       if (forge.snap) forge.api.update(forge.snap);
       forge.api.setActive(forge.active);
       stage.classList.add('ready');
+      flush(forge.api);
     });
   }
 
@@ -181,6 +184,16 @@
     setSkins: function (k) {
       skins = k;
       if (forge.api) forge.api.setSkins(k);
+    },
+    // The Forge Shop borrows the forge as a live showroom. cb(api) — api is null without 3D.
+    withForge: function (cb) {
+      if (forge.api) return cb(forge.api);
+      if (forge.failed || !webglAvailable()) return cb(null);
+      waiters.push(cb);
+      forgeStart();
+    },
+    showroomOff: function () {
+      if (forge.api) forge.api.showroomOff();
     },
     finaleSkip: function () {
       if (forge.api) forge.api.finaleSkip();

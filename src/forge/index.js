@@ -102,19 +102,72 @@ function anvilGroup() {
   return g;
 }
 
+// A blacksmith's cross-peen hammer. Origin = the centre of the striking face; the head
+// stands along +y (face down), the handle runs along +x.
 function hammerGroup(wood) {
   const g = new THREE.Group();
-  const steel = new THREE.MeshPhysicalMaterial({ color: 0x3b3b40, metalness: 1, roughness: 0.35 });
-  const head = new THREE.Mesh(new RoundedBoxGeometry(0.075, 0.075, 0.2, 3, 0.012), steel);
-  head.position.set(0, 0.0375, 0);          // origin = striking face
-  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.022, 0.62, 12), new THREE.MeshStandardMaterial({ map: wood.map, roughness: 0.7 }));
-  handle.rotation.z = Math.PI / 2;
-  handle.position.set(0.33, 0.045, 0);
-  g.add(head, handle);
-  g.traverse((o) => { o.castShadow = true; });
+  g.rotation.order = 'YXZ';
+  const body = new THREE.MeshPhysicalMaterial({ color: 0x3b3b40, metalness: 1, roughness: 0.46, clearcoat: 0.2, clearcoatRoughness: 0.4 });
+  const bright = new THREE.MeshPhysicalMaterial({ color: 0xa4a6ac, metalness: 1, roughness: 0.16 });
+  const W = 0.058, FACE = 0.014, BODY = 0.1, PEEN = 0.072;
+
+  // Polished, slightly crowned face.
+  const face = new THREE.Mesh(new RoundedBoxGeometry(W * 0.97, FACE * 2, W * 0.97, 4, 0.011), bright);
+  face.position.y = FACE;
+  // Square body with chamfered edges.
+  const block = new THREE.Mesh(new RoundedBoxGeometry(W, BODY, W, 4, 0.008), body);
+  block.position.y = FACE + BODY / 2;
+  // Cross peen: tapers across the handle to a rounded edge.
+  const ps = new THREE.Shape();
+  ps.moveTo(-W / 2, 0);
+  ps.lineTo(W / 2, 0);
+  ps.bezierCurveTo(W / 2, PEEN * 0.45, 0.012, PEEN * 0.8, 0.0055, PEEN);
+  ps.quadraticCurveTo(0, PEEN + 0.0045, -0.0055, PEEN);
+  ps.bezierCurveTo(-0.012, PEEN * 0.8, -W / 2, PEEN * 0.45, -W / 2, 0);
+  const D = W - 0.008;
+  const peenGeo = new THREE.ExtrudeGeometry(ps, { depth: D, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 3, curveSegments: 14 });
+  peenGeo.translate(0, 0, -D / 2);
+  const peen = new THREE.Mesh(peenGeo, body);
+  peen.position.y = FACE + BODY - 0.003;
+  // The peen's working edge is ground bright.
+  const edge = new THREE.Mesh(new THREE.CylinderGeometry(0.0062, 0.0062, D + 0.004, 16), bright);
+  edge.rotation.x = Math.PI / 2;
+  edge.position.y = FACE + BODY - 0.003 + PEEN - 0.002;
+
+  // Tapered oval hickory handle with a leather-wrapped grip.
+  const eyeY = FACE + BODY * 0.55;
+  const prof = [[0, 0], [0.0152, 0], [0.0158, 0.02], [0.0134, 0.13], [0.0142, 0.27], [0.0186, 0.45], [0.0196, 0.57],
+    [0.0182, 0.605], [0.0118, 0.622], [0, 0.625]].map(([r, y]) => new THREE.Vector2(r, y));
+  const hg = new THREE.LatheGeometry(prof, 28);
+  hg.rotateZ(-Math.PI / 2);
+  hg.scale(1, 1, 0.78);
+  const handleMat = new THREE.MeshStandardMaterial({ map: wood.map, normalMap: wood.normalMap, roughness: 0.55, color: 0xffffff });
+  const handle = new THREE.Mesh(hg, handleMat);
+  handle.position.set(-W / 2 - 0.002, eyeY, 0);
+  const leather = new THREE.MeshStandardMaterial({ color: 0x2a1a12, roughness: 0.75 });
+  const wrap = new THREE.Group();
+  for (let i = 0; i < 9; i++) {
+    const t = new THREE.Mesh(new THREE.TorusGeometry(0.0192, 0.0031, 8, 28), leather);
+    t.rotation.y = Math.PI / 2;
+    t.scale.set(1, 1, 0.8);
+    t.position.x = 0.43 + i * 0.016;
+    wrap.add(t);
+  }
+  wrap.position.set(-W / 2 - 0.002, eyeY, 0);
+  // End grain and a steel wedge showing through the eye on the far cheek.
+  const grain = new THREE.Mesh(new THREE.CircleGeometry(0.0145, 24), new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.8 }));
+  grain.rotation.y = -Math.PI / 2;
+  grain.scale.set(1, 1, 0.78);
+  grain.position.set(-W / 2 - 0.0012, eyeY, 0);
+  const wedge = new THREE.Mesh(new THREE.BoxGeometry(0.002, 0.004, 0.024), bright);
+  wedge.position.set(-W / 2 - 0.0016, eyeY, 0);
+
+  g.add(face, block, peen, edge, handle, wrap, grain, wedge);
+  g.traverse((o) => { if (o.isMesh) o.castShadow = true; });
   g.visible = false;
-  g.userData.head = steel;
-  g.userData.handle = handle.material;
+  g.userData.head = body;
+  g.userData.face = bright;
+  g.userData.handle = handleMat;
   return g;
 }
 
@@ -627,6 +680,7 @@ function updateSparks(dt) {
 
 // ---------- Per-frame look ----------
 function targets() {
+  if (PV.on) return { temp: PV.temp, coal: PV.coal, exam: 0, rest: 0, legend: 0 };
   const s = F.snap || { heatMin: 0, stage: 0, cracks: 0, mode: 'stopwatch', phase: 'work', status: 'ready' };
   const onBreak = s.mode === 'timer' && s.phase === 'break';
   const idle = s.status === 'paused' || s.status === 'ready';
@@ -698,6 +752,11 @@ function apply(dt, realDt) {
   hemi.intensity += lift * 2.6;
   FIN.key.intensity = 30 + lift * 60;
   if (FIN.fill) FIN.fill.intensity = lift * 22;
+  if (PV.on) {
+    hemi.intensity *= PV.dimNow;
+    roomLight.intensity *= PV.dimNow;
+    windowLight.intensity *= PV.dimNow;
+  }
 
   // Heat haze over the coals (and over the billet when it's glowing).
   if (haze.enabled) {
@@ -713,7 +772,7 @@ function frame() {
   const dt = Math.min(0.1, raw);
   F.real = (F.real || 0) + Math.min(2, raw);
   F.acc += dt;
-  const animate = !(F.calm || reducedMotion);
+  const animate = PV.on ? !reducedMotion : !(F.calm || reducedMotion);
   if (animate && F.acc < 1 / FPS) return;
   if (!animate && !F.dirty) return;
   const step = F.acc;
@@ -734,12 +793,23 @@ function frame() {
   billet.scale.set(1 + sq * 0.05, 1 - sq * 0.12, 1 + sq * 0.05);
   billet.userData.squash = Math.max(0, sq - step * 6);
   cam.shake = Math.max(0, cam.shake - step * 5);
+  // Shop showroom: glide to the category's framing and slowly sway around it.
+  let orbit = 0;
+  if (PV.on) {
+    const k = animate ? 1 - Math.pow(0.04, step) : 1;
+    cam.base.lerp(PV.base, k);
+    cam.look.lerp(PV.look, k);
+    FIN.lift.v += (PV.lift - FIN.lift.v) * k;
+    FIN.spot.intensity += (PV.spot - FIN.spot.intensity) * k;
+    PV.dimNow += (PV.dim - PV.dimNow) * k;
+    orbit = animate ? Math.sin(F.time * 0.22) * PV.sway : 0;
+  }
   // Breathing camera: a few millimetres of drift over a minute, so the shot never feels frozen.
   const drift = animate ? 1 : 0;
   camera.position.set(
-    cam.base.x + Math.sin(F.time * 0.05) * 0.04 * drift + (Math.random() - 0.5) * 0.012 * cam.shake,
+    cam.base.x + orbit + Math.sin(F.time * 0.05) * 0.04 * drift + (Math.random() - 0.5) * 0.012 * cam.shake,
     cam.base.y + Math.sin(F.time * 0.037) * 0.02 * drift + (Math.random() - 0.5) * 0.012 * cam.shake,
-    cam.base.z
+    cam.base.z - orbit * 0.4
   );
   camera.lookAt(cam.look);
 
@@ -907,7 +977,7 @@ function resize() {
   if (!w || !h) return;
   // A backdrop doesn't need full resolution: render slightly below native and let the
   // browser scale; it keeps a multi-hour session cool and quiet.
-  const pr = Math.min(window.devicePixelRatio || 1, 1.25) * 0.85 * F.quality;
+  const pr = PV.on ? Math.min(window.devicePixelRatio || 1, 1.5) * F.quality : Math.min(window.devicePixelRatio || 1, 1.25) * 0.85 * F.quality;
   renderer.setPixelRatio(pr);
   composer.setPixelRatio(pr);
   renderer.setSize(w, h, false);
@@ -921,7 +991,7 @@ function resize() {
 
 function updateRunning() {
   if (!renderer) return;
-  const run = F.mounted && F.active && !document.hidden;
+  const run = F.mounted && (F.active || PV.on) && !document.hidden;
   if (run === F.running) return;
   F.running = run;
   if (run) { clock.start(); clock.getDelta(); F.dirty = true; }
@@ -984,8 +1054,7 @@ function setCalm(on) {
 // ---------- Shop skins (v3.2) ----------
 const SK = { hot: new THREE.Color(1, 0.38, 0.07), tint: [1, 1, 1], windowMul: 1, anvil: null, wall: null, want: null };
 
-function applySkins() {
-  const k = SK.want;
+function applySkins(k = SK.want) {
   if (!k) return;
   if (k.ember) SK.hot.setRGB(k.ember.hot[0], k.ember.hot[1], k.ember.hot[2]);
   if (k.anvil && SK.anvil) {
@@ -994,10 +1063,14 @@ function applySkins() {
     SK.anvil.face.color.setHex(k.anvil.face);
   }
   if (k.hammer && hammer) {
-    hammer.userData.head.color.setHex(k.hammer.head);
-    hammer.userData.head.emissive.setHex(k.hammer.glow || 0);
-    hammer.userData.head.emissiveIntensity = k.hammer.glow ? 1.6 : 0;
-    hammer.userData.handle.color.setHex(k.hammer.handle);
+    const hd = hammer.userData;
+    hd.head.color.setHex(k.hammer.head);
+    hd.face.color.setHex(k.hammer.head).lerp(new THREE.Color(0xffffff), 0.45);
+    hd.face.emissive.setHex(k.hammer.glow || 0);
+    hd.face.emissiveIntensity = k.hammer.glow ? 2.2 : 0;
+    hd.head.emissive.setHex(k.hammer.glow || 0);
+    hd.head.emissiveIntensity = k.hammer.glow ? 0.35 : 0;
+    hd.handle.color.setHex(k.hammer.handle);
   }
   if (k.room && windowLight) {
     windowLight.color.setHex(k.room.window);
@@ -1021,4 +1094,115 @@ function setBrightness(v) {
   F.dirty = true;
 }
 
-SF.forge3d = { mount, update, setActive, setCalm, setBrightness, setSkins, strike: startStrike, finale, finaleSkip };
+// ---------- Showroom (v3.2): the Forge Shop's live preview ----------
+// The shop borrows this forge: the canvas moves into the shop's stage, the camera frames
+// the hearth, anvil, hammer or whole room, and items are tried on before you buy them.
+// dim: how much of the room light stays (so glowing coals pop); env: reflection strength.
+const PRESETS = {
+  ember: { base: [-2.02, 1.72, 0.85], look: [-2.82, 1.02, -1.3], temp: 20, coal: 1, lift: 0, spot: 0, sway: 0.1, dim: 0.35, env: 0.8, billet: true },
+  anvil: { base: [1.02, 1.62, 2.55], look: [1.82, 0.92, 0.35], temp: 20, coal: 0.6, lift: 0.5, spot: 70, sway: 0.16, dim: 0.85, env: 2.4, billet: true },
+  hammer: { base: [1.66, 1.56, 1.06], look: [2.06, 1.19, 0.47], temp: 20, coal: 0.6, lift: 0.45, spot: 60, sway: 0.1, dim: 0.8, env: 2.2, billet: false, hammer: true },
+  room: { base: [0, 2.15, 6.6], look: [-0.35, 1.25, -0.4], temp: 900, coal: 0.85, lift: 0.25, spot: 0, sway: 0.25, dim: 1, env: 0.8, billet: true }
+};
+const PV = { on: false, cat: 'room', base: new THREE.Vector3(), look: new THREE.Vector3(), temp: 900, coal: 0.8, lift: 0, spot: 0, sway: 0,
+  dim: 1, dimNow: 1, home: null, sessionEl: null, ro: null, skins: null };
+
+function preview(cat, skins) {
+  PV.cat = PRESETS[cat] ? cat : 'room';
+  const P = PRESETS[PV.cat];
+  PV.base.fromArray(P.base);
+  PV.look.fromArray(P.look);
+  Object.assign(PV, { temp: P.temp, coal: P.coal, lift: P.lift, spot: P.spot, sway: P.sway, dim: P.dim });
+  if (skins) PV.skins = skins;
+  if (!F.mounted) return;
+  scene.environmentIntensity = P.env;
+  billet.visible = P.billet;
+  // The hammer lies across the anvil face, handle reaching toward you, when it's the star.
+  if (P.hammer) {
+    hammer.visible = true;
+    hammer.position.set(ANVIL_POS.x - 0.27, anvilTop + 0.029, ANVIL_POS.z);
+    hammer.rotation.set(Math.PI / 2, -0.62, 0);
+  } else if (strike.t < 0) hammer.visible = false;
+  applySkins(PV.skins || SK.want);
+  F.dirty = true;
+}
+
+function showroom(el, cat, skins) {
+  if (!F.mounted) return;
+  if (FIN.active || FIN.quenched) resetFinale();
+  if (!PV.on) {
+    PV.sessionEl = container;
+    PV.home = { base: cam.base.clone(), look: cam.look.clone() };
+  }
+  PV.on = true;
+  container = el;
+  el.appendChild(renderer.domElement);
+  if (!PV.ro) PV.ro = new ResizeObserver(() => { if (PV.on) resize(); });
+  PV.ro.observe(el);
+  F.fade = 1;
+  preview(cat || PV.cat, skins);
+  cam.base.copy(PV.base);
+  cam.look.copy(PV.look);
+  resize();
+  updateRunning();
+}
+
+function showroomOff() {
+  if (!PV.on) return;
+  PV.on = false;
+  PV.ro.disconnect();
+  container = PV.sessionEl;
+  container.appendChild(renderer.domElement);
+  cam.base.copy(PV.home.base);
+  cam.look.copy(PV.home.look);
+  if (strike.t < 0) hammer.visible = false;
+  FIN.lift.v = 0;
+  FIN.spot.intensity = 0;
+  scene.environmentIntensity = 0.8;
+  billet.visible = true;
+  PV.dimNow = 1;
+  PV.skins = null;
+  applySkins(SK.want);
+  resize();
+  updateRunning();
+}
+
+// Render a still of each job ({ id, cat, skins }) for the shop's cards, one per frame.
+async function thumbnails(jobs, w, h, onEach) {
+  if (!F.mounted || !PV.on) return;
+  const live = { cat: PV.cat, skins: PV.skins };
+  const out = document.createElement('canvas');
+  out.width = w; out.height = h;
+  const ctx = out.getContext('2d');
+  renderer.setPixelRatio(1);
+  composer.setPixelRatio(1);
+  renderer.setSize(w, h, false);
+  composer.setSize(w, h);
+  camera.aspect = w / h;
+  camera.fov = 40;
+  camera.updateProjectionMatrix();
+  for (const job of jobs) {
+    if (!PV.on) return;
+    preview(job.cat, job.skins);
+    cam.base.copy(PV.base);
+    cam.look.copy(PV.look);
+    Object.assign(F, { temp: PV.temp, coal: PV.coal, exam: 0, rest: 0, legend: 0, fade: 1, time: 4.2 });
+    FIN.lift.v = PV.lift;
+    FIN.spot.intensity = PV.spot;
+    PV.dimNow = PV.dim;
+    camera.position.copy(cam.base);
+    camera.lookAt(cam.look);
+    coals.material.uniforms.uTime.value = F.time;
+    flames.userData.mat.uniforms.uTime.value = F.time;
+    embers.material.uniforms.uTime.value = F.time;
+    apply(0.0001, 0);
+    composer.render(0.016);
+    ctx.drawImage(renderer.domElement, 0, 0, w, h);
+    onEach(job.id, out.toDataURL('image/jpeg', 0.88));
+    await new Promise((r) => requestAnimationFrame(r));
+  }
+  preview(live.cat, live.skins);
+  resize();
+}
+
+SF.forge3d = { showroom, showroomOff, preview, thumbnails, mount, update, setActive, setCalm, setBrightness, setSkins, strike: startStrike, finale, finaleSkip };

@@ -283,30 +283,72 @@
     return r;
   }
 
+  // ---------- Shop: rendered thumbnails and the live 3D stage ----------
+  var THUMB_KEY = 'studyforge.thumbs.v3';
+  var thumbs = (function () { try { return JSON.parse(root.sessionStorage.getItem(THUMB_KEY)) || {}; } catch (e) { return {}; } })();
+  var selected = {};
+  var stage = { api: null, failed: false, rendering: false, hover: null, timer: 0, shown: null };
+
+  function saveThumbs() { try { root.sessionStorage.setItem(THUMB_KEY, JSON.stringify(thumbs)); } catch (e) { /* full: fine */ } }
+  function catName(cat) { return SH.CATEGORIES.filter(function (c) { return c.id === cat; })[0].name; }
+  function defaultSkins() {
+    var k = {};
+    SH.CATEGORIES.forEach(function (c) { k[c.id] = SH.itemsIn(c.id).filter(function (i) { return i.price === 0; })[0].skin; });
+    return k;
+  }
+  function withItem(base, item) { var k = Object.assign({}, base); k[item.cat] = item.skin; return k; }
+
+  function cardArt(item) {
+    if (stage.failed) return art(item);
+    var box = el('div', { class: 'si-art si-thumb' }, [el('span', { class: 'si-skel', 'aria-hidden': 'true' })]);
+    if (thumbs[item.id]) {
+      box.appendChild(el('img', { src: thumbs[item.id], alt: '' }));
+      box.classList.add('loaded');
+    }
+    return box;
+  }
+
+  function setThumb(id, url) {
+    thumbs[id] = url;
+    var box = $('shop-grid').querySelector('.shop-item[data-id="' + id + '"] .si-thumb');
+    if (!box || box.querySelector('img')) return;
+    box.appendChild(el('img', { src: url, alt: '' }));
+    requestAnimationFrame(function () { box.classList.add('loaded'); });
+  }
+
   function cardState(state, item) {
     if (SH.equippedId(state, item.cat) === item.id) return 'equipped';
     if (SH.owns(state, item.id)) return 'owned';
     return SH.wallet(state) >= item.price ? 'buy' : 'short';
   }
 
-  function setCard(card, state, item) {
+  function priceInto(node, state, item) {
+    node.textContent = '';
+    if (item.price === 0) node.textContent = 'Free';
+    else if (SH.owns(state, item.id)) node.textContent = 'Owned';
+    else { node.appendChild(el('i', { class: 'ingot-icon', 'aria-hidden': 'true' })); node.appendChild(doc.createTextNode(String(item.price))); }
+  }
+
+  function buttonFor(btn, state, item, long) {
     var st = cardState(state, item);
-    card.dataset.state = st;
-    var btn = card.querySelector('.si-btn');
-    var price = card.querySelector('.si-price');
     btn.classList.remove('confirm');
     btn.disabled = st === 'equipped' || st === 'short';
-    btn.className = 'btn si-btn' + (st === 'buy' ? ' btn-primary' : '');
-    btn.textContent = st === 'equipped' ? 'Equipped ✓' : st === 'owned' ? 'Equip' : st === 'buy' ? 'Buy' : 'Need ' + (item.price - SH.wallet(state)) + ' more';
-    price.textContent = '';
-    if (item.price === 0) price.textContent = 'Free';
-    else if (SH.owns(state, item.id)) price.textContent = 'Owned';
-    else { price.appendChild(el('i', { class: 'ingot-icon', 'aria-hidden': 'true' })); price.appendChild(doc.createTextNode(String(item.price))); }
+    btn.classList.toggle('btn-primary', st === 'buy');
+    btn.textContent = st === 'equipped' ? 'Equipped ✓' : st === 'owned' ? 'Equip' :
+      st === 'buy' ? (long ? 'Buy for ' + item.price : 'Buy') : 'Need ' + (item.price - SH.wallet(state)) + ' more';
+    btn.dataset.id = item.id;
+    return st;
+  }
+
+  function setCard(card, state, item) {
+    card.dataset.state = buttonFor(card.querySelector('.si-btn'), state, item, false);
+    card.classList.toggle('selected', selected[item.cat] === item.id);
+    priceInto(card.querySelector('.si-price'), state, item);
   }
 
   function itemCard(state, item) {
-    var card = el('article', { class: 'shop-item', 'data-id': item.id }, [
-      art(item),
+    var card = el('article', { class: 'shop-item', 'data-id': item.id, tabindex: '0', 'aria-label': item.name }, [
+      cardArt(item),
       el('div', { class: 'si-body' }, [el('h3', { text: item.name }), el('p', { text: item.desc })]),
       el('div', { class: 'si-foot' }, [el('span', { class: 'si-price' }), el('button', { class: 'btn si-btn', type: 'button' })])
     ]);
@@ -320,7 +362,7 @@
     if (animate && shownWallet != null && shownWallet !== w) countTo(node, shownWallet, w, 0.8);
     else node.textContent = w;
     shownWallet = w;
-    $('wallet-sub').textContent = state.totalIngots.toLocaleString() + ' forged · ' + ((state.shop && state.shop.spent) || 0).toLocaleString() + ' spent · ' + SH.ownedCount(state) + ' items owned';
+    $('wallet-sub').textContent = state.totalIngots.toLocaleString() + ' forged · ' + ((state.shop && state.shop.spent) || 0).toLocaleString() + ' spent';
   }
 
   function renderTabs(state) {
@@ -331,26 +373,112 @@
       var owned = items.filter(function (i) { return SH.owns(state, i.id); }).length;
       host.appendChild(el('button', {
         class: 'shop-tab', role: 'tab', type: 'button', 'data-cat': c.id, 'aria-selected': String(c.id === tab)
-      }, [el('b', { text: c.name }), el('small', { text: owned + ' / ' + items.length })]));
+      }, [el('b', { text: c.name }), el('small', { text: owned + ' / ' + items.length + ' owned' })]));
     });
   }
 
   function renderGrid(state, animate) {
     var cat = SH.CATEGORIES.filter(function (c) { return c.id === tab; })[0];
-    $('shop-blurb').textContent = cat.blurb + ' Changes show in the forge on your session screen.';
+    $('shop-blurb').textContent = cat.blurb + ' Hover an item to try it on above.';
     var grid = $('shop-grid');
     grid.textContent = '';
     SH.itemsIn(tab).forEach(function (item) { grid.appendChild(itemCard(state, item)); });
     var g = gs();
-    if (g && animate) g.from(grid.children, { y: 18, autoAlpha: 0, duration: 0.45, stagger: 0.05, ease: 'power3.out' });
+    if (g && animate) g.from(grid.children, { y: 22, autoAlpha: 0, duration: 0.5, stagger: 0.06, ease: 'power3.out', clearProps: 'transform,opacity,visibility' });
+  }
+
+  // ---- The stage ----
+  function stageItem() { return SH.item(stage.hover || selected[tab] || SH.equippedId(Sctx.state, tab)); }
+
+  function renderStageInfo() {
+    var item = stageItem();
+    var trying = stage.hover && stage.hover !== selected[tab];
+    $('stage-eyebrow').textContent = (trying ? 'Trying on · ' : '') + catName(item.cat);
+    $('stage-name').textContent = item.name;
+    $('stage-desc').textContent = item.desc;
+    priceInto($('stage-price'), Sctx.state, item);
+    buttonFor($('stage-btn'), Sctx.state, item, true);
+    if (stage.shown !== item.id) {
+      stage.shown = item.id;
+      var g = gs();
+      if (g) g.fromTo('#stage-info > *', { y: 10, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.4, stagger: 0.04, ease: 'power3.out', overwrite: true });
+    }
+  }
+
+  function stagePreview() {
+    if (!stage.api || stage.rendering) return;
+    stage.api.preview(tab, withItem(SH.skins(Sctx.state), stageItem()));
+  }
+
+  function loader(text, f) {
+    var box = $('stage-loader');
+    if (text == null) {
+      var g = gs();
+      if (g) g.to(box, { autoAlpha: 0, duration: 0.6, ease: 'power2.out', onComplete: function () { box.hidden = true; } });
+      else box.hidden = true;
+      return;
+    }
+    box.hidden = false;
+    if (gs()) gs().set(box, { autoAlpha: 1 });
+    $('stage-loader-text').textContent = text;
+    $('stage-loader-fill').style.width = Math.round((f || 0) * 100) + '%';
+  }
+
+  function openStage() {
+    if (stage.failed) return;
+    var host = $('shop-stage');
+    if (!stage.api) loader('Lighting the showroom', 0.15);
+    root.SF.forge.withForge(function (api) {
+      if (!api) {
+        stage.failed = true;
+        host.classList.add('no3d');
+        loader(null);
+        renderGrid(Sctx.state, false);
+        return;
+      }
+      if ($('view-shop').hidden) return;
+      stage.api = api;
+      api.showroom(host, tab, withItem(SH.skins(Sctx.state), stageItem()));
+      host.classList.add('live');
+      renderThumbs();
+    });
+  }
+
+  // Each card's picture is the real forge, rendered with that one item.
+  function renderThumbs() {
+    var order = [tab].concat(SH.CATEGORIES.map(function (c) { return c.id; }).filter(function (c) { return c !== tab; }));
+    var base = defaultSkins(), jobs = [];
+    order.forEach(function (cat) {
+      SH.itemsIn(cat).forEach(function (item) {
+        if (!thumbs[item.id]) jobs.push({ id: item.id, cat: cat, skins: withItem(base, item) });
+      });
+    });
+    if (!jobs.length) { loader(null); return; }
+    stage.rendering = true;
+    var done = 0;
+    loader('Polishing the displays', 0.2);
+    stage.api.thumbnails(jobs, 560, 340, function (id, url) {
+      setThumb(id, url);
+      done++;
+      loader('Polishing the displays · ' + done + ' / ' + jobs.length, 0.2 + 0.8 * done / jobs.length);
+    }).then(function () {
+      stage.rendering = false;
+      saveThumbs();
+      stagePreview();
+      loader(null);
+    });
   }
 
   function renderShop(state, handlers) {
     var first = !Sctx;
     Sctx = { state: state, h: handlers };
+    if (!selected[tab]) selected[tab] = SH.equippedId(state, tab);
     renderWallet(state, !first);
     renderTabs(state);
     renderGrid(state, true);
+    stage.hover = null;
+    renderStageInfo();
+    openStage();
   }
 
   function refreshCards() {
@@ -358,6 +486,25 @@
       setCard(card, Sctx.state, SH.item(card.dataset.id));
     });
     renderTabs(Sctx.state);
+    renderStageInfo();
+  }
+
+  function hover(id) {
+    clearTimeout(stage.timer);
+    stage.timer = setTimeout(function () {
+      if (stage.hover === id) return;
+      stage.hover = id;
+      renderStageInfo();
+      stagePreview();
+    }, id ? 70 : 220);
+  }
+
+  function select(id) {
+    selected[tab] = id;
+    stage.hover = null;
+    sound('tick');
+    refreshCards();
+    stagePreview();
   }
 
   function onShopClick(e) {
@@ -366,66 +513,105 @@
     if (t) {
       if (t.dataset.cat === tab) return;
       tab = t.dataset.cat;
-      sound('tick');
+      if (!selected[tab]) selected[tab] = SH.equippedId(Sctx.state, tab);
+      stage.hover = null;
+      sound('whoosh');
       renderTabs(Sctx.state);
       renderGrid(Sctx.state, true);
+      renderStageInfo();
+      stagePreview();
       return;
     }
-    var btn = e.target.closest('.si-btn');
-    if (!btn || btn.disabled) return;
-    var card = btn.closest('.shop-item');
-    var item = SH.item(card.dataset.id);
-    var st = card.dataset.state;
-    if (st === 'owned') return equip(card, item);
+    var btn = e.target.closest('.si-btn, #stage-btn');
+    var card = e.target.closest('.shop-item');
+    if (!btn) { if (card) select(card.dataset.id); return; }
+    if (btn.disabled) return;
+    var item = SH.item(btn.dataset.id);
+    var st = cardState(Sctx.state, item);
+    if (st === 'owned') return equip(item);
     if (st !== 'buy') return;
     // Two clicks to buy: the first asks for confirmation.
     if (!btn.classList.contains('confirm')) {
       btn.classList.add('confirm');
       btn.textContent = 'Confirm · ' + item.price;
       clearTimeout(btn._t);
-      btn._t = setTimeout(function () { if (btn.isConnected) setCard(card, Sctx.state, item); }, 3500);
+      btn._t = setTimeout(function () { if (btn.isConnected) refreshCards(); }, 3500);
       return;
     }
     clearTimeout(btn._t);
-    buy(card, item, btn);
+    buy(item, btn);
   }
 
-  function buy(card, item, btn) {
+  function cardOf(id) { return $('shop-grid').querySelector('.shop-item[data-id="' + id + '"]'); }
+
+  // The stage flares up as a new item is forged into it.
+  function stageFlare(item) {
+    var host = $('shop-stage');
+    var f = el('span', { class: 'stage-flare', 'aria-hidden': 'true' });
+    f.style.setProperty('--flare', item.swatch[1]);
+    host.appendChild(f);
+    var g = gs();
+    if (g) g.fromTo(f, { autoAlpha: 0, scale: 0.4 }, { autoAlpha: 1, scale: 1.4, duration: 0.35, ease: 'power2.out', yoyo: true, repeat: 1, onComplete: function () { f.remove(); } });
+    else f.remove();
+    sparks(host, item.swatch[1], 30);
+    stamp($('stage-info'), 'Forged!');
+  }
+
+  function buy(item, btn) {
     var before = SH.wallet(Sctx.state);
     var r = Sctx.h.buy(item.id);
-    if (!r.ok) { setCard(card, Sctx.state, item); return; }
+    if (!r.ok) { refreshCards(); return; }
     btn.disabled = true;
     btn.textContent = 'Forging…';
+    selected[item.cat] = item.id;
+    stage.hover = null;
     var walletNode = $('wallet-val');
     countTo(walletNode, before, SH.wallet(Sctx.state), 0.9);
     shownWallet = SH.wallet(Sctx.state);
-    fly(walletNode, card.querySelector('.si-art'), Math.min(10, Math.max(4, Math.round(item.price / 30))), function () {
+    var card = cardOf(item.id);
+    var target = btn.id === 'stage-btn' || !card ? $('stage-name') : card.querySelector('.si-art');
+    fly(walletNode, target, Math.min(10, Math.max(4, Math.round(item.price / 30))), function () {
       sound('clang');
       setTimeout(function () { sound('reward'); }, 160);
-      shimmer(card);
-      sparks(card.querySelector('.si-art'), item.swatch[1], 22);
-      stamp(card, 'Forged!');
-      pop(card);
+      stageFlare(item);
+      if (card) { shimmer(card); sparks(card.querySelector('.si-art'), item.swatch[1], 18); pop(card); }
       refreshCards();
       renderWallet(Sctx.state, false);
-      var top = $('top-ingots');
-      top.textContent = SH.wallet(Sctx.state);
+      stagePreview();
+      $('top-ingots').textContent = SH.wallet(Sctx.state);
     });
   }
 
-  function equip(card, item) {
+  function equip(item) {
     if (!Sctx.h.equip(item.id)) return;
-    sound('tick');
-    var g = gs();
-    var old = $('shop-grid').querySelector('.shop-item[data-state="equipped"]');
+    selected[item.cat] = item.id;
+    stage.hover = null;
+    sound('clang');
+    var card = cardOf(item.id);
     refreshCards();
-    shimmer(card);
-    sparks(card.querySelector('.si-art'), item.swatch[1], 10);
-    if (g) {
-      g.fromTo(card, { scale: 0.97 }, { scale: 1, duration: 0.45, ease: 'back.out(3)' });
-      if (old) g.fromTo(old, { scale: 1.02 }, { scale: 1, duration: 0.3 });
+    stagePreview();
+    if (card) {
+      shimmer(card);
+      sparks(card.querySelector('.si-art'), item.swatch[1], 12);
+      var g = gs();
+      if (g) g.fromTo(card, { scale: 0.97 }, { scale: 1, duration: 0.45, ease: 'back.out(3)' });
     }
   }
+
+  doc.addEventListener('pointerover', function (e) {
+    if (!Sctx || stage.failed) return;
+    var card = e.target.closest && e.target.closest('#shop-grid .shop-item');
+    if (card) hover(card.dataset.id);
+    else if (stage.hover && !e.target.closest('#shop-grid')) hover(null);
+  });
+  doc.addEventListener('keydown', function (e) {
+    var card = e.target.closest && e.target.closest('#shop-grid .shop-item');
+    if (card && (e.key === 'Enter' || e.key === ' ') && e.target === card) { e.preventDefault(); select(card.dataset.id); }
+  });
+  doc.addEventListener('focusin', function (e) {
+    var card = e.target.closest && e.target.closest('#shop-grid .shop-item');
+    if (card && Sctx && !stage.failed) hover(card.dataset.id);
+  });
 
   doc.addEventListener('click', function (e) {
     if (e.target.closest('#quests-card')) onQuestClick(e);

@@ -254,16 +254,34 @@
 
     <!-- ============ SHOP ============ -->
     <section class="view" id="view-shop" hidden aria-labelledby="shop-h">
-      <div class="card shop-hero">
-        <div class="shop-intro">
-          <span class="eyebrow">Forge Shop</span>
-          <h1 id="shop-h" class="shop-title">Restyle your forge</h1>
-          <p class="muted">Spend Ingots on embers, anvils, hammers and workshops. Spending never lowers your alloy progress, which counts every Ingot you've ever forged.</p>
-        </div>
-        <div class="wallet">
-          <span class="wallet-label">Wallet</span>
-          <b class="wallet-val"><i class="ingot-icon" aria-hidden="true"></i><span id="wallet-val">0</span></b>
-          <small id="wallet-sub"></small>
+      <div class="shop-stage-card">
+        <div class="shop-stage" id="shop-stage">
+          <div class="stage-shade" aria-hidden="true"></div>
+          <div class="stage-head">
+            <div>
+              <span class="eyebrow">Forge Shop</span>
+              <h1 id="shop-h" class="shop-title">Restyle your forge</h1>
+            </div>
+            <div class="wallet">
+              <span class="wallet-label">Wallet</span>
+              <b class="wallet-val"><i class="ingot-icon" aria-hidden="true"></i><span id="wallet-val">0</span></b>
+              <small id="wallet-sub"></small>
+            </div>
+          </div>
+          <div class="stage-info" id="stage-info" aria-live="polite">
+            <span class="si-eyebrow" id="stage-eyebrow"></span>
+            <h2 class="stage-name" id="stage-name"></h2>
+            <p class="stage-desc" id="stage-desc"></p>
+            <div class="stage-actions">
+              <span class="stage-price" id="stage-price"></span>
+              <button class="btn btn-primary stage-btn" id="stage-btn" type="button"></button>
+            </div>
+          </div>
+          <div class="stage-loader" id="stage-loader" role="status">
+            <span class="sl-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span id="stage-loader-text">Lighting the showroom</span>
+            <span class="sl-bar" aria-hidden="true"><i id="stage-loader-fill"></i></span>
+          </div>
         </div>
       </div>
       <div class="shop-tabs" role="tablist" aria-label="Shop categories" id="shop-tabs"></div>

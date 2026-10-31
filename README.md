@@ -14,7 +14,12 @@ Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no depende
   - **Claim** the reward to watch the Ingots fly into your wallet.
   - Each day you can swap one daily quest you haven't finished (↻).
   - Daily quests reset at midnight; weekly quests reset on Monday.
-- **Forge Shop** (new Shop tab): 21 items in four categories that restyle the 3D forge on your session screen:
+- **Forge Shop** (new Shop tab): a **live 3D showroom**.
+  - Your real forge (fire shaders, bloom and all) fills a stage at the top. The camera glides to the hearth, anvil, hammer or whole room depending on the tab.
+  - **Hover any item to try it on** before you buy.
+  - Every card's picture is rendered from the same 3D scene, with a shimmer while it renders.
+  - The hammer is a new, detailed cross-peen model with a tapered handle and a leather-wrapped grip. It's also the one that strikes in your sessions.
+  - 21 items in four categories restyle the 3D forge on your session screen:
   - **Embers:** the colour of your coals, flames and sparks (Crimson, Blue Flame, Copper Green, Arcane Violet, White Gold).
   - **Anvils:** Polished Steel, Bronze, Obsidian, Gold Leaf.
   - **Hammers:** Ebony & Steel, Copper, Golden, and a glowing Mythril Hammer.
