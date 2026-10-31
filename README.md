@@ -4,6 +4,17 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v3.1
+
+- **Smoother forging:** clicking **Forge** no longer freezes the page or skips the animation.
+  - The Vault keeps a fixed set of lights, so adding the crucible no longer forces every shader in the scene to recompile.
+  - New shaders and textures are prepared before the pour starts.
+  - If the PC stalls for a moment, the animation pauses instead of jumping ahead.
+- **Brighter forge:** the session forge has a warm room light, so it's clearly visible even when the metal is cold, and the end-of-session scene lights the anvil properly.
+- **Brightness control:**
+  - Settings → Effects → **3D brightness** (50–250%) sets it for the forge and the Vault.
+  - On the session screen, the ☀ button (or **B**) opens a quick slider.
+
 ## What's new in v3 — animation
 
 - **Forging in the Vault:** reaching an alloy's requirements no longer hands you the ingot.

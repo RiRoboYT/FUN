@@ -97,13 +97,14 @@
       api.update(vault.state, true);
       api.setVisible(vault.visible);
       Promise.resolve(api.mount(vaultEls(), { onProgress: vaultProgress, onForge: vault.onForge }))
-        .then(function () { vault.api = api; api.update(vault.state); api.setVisible(vault.visible); })
+        .then(function () { vault.api = api; api.setBrightness(brightness); api.update(vault.state); api.setVisible(vault.visible); })
         .catch(function (e) { console.error(e); vaultFail(); });
     });
   }
 
   // ---------- Forge (session screen) ----------
   var forge = { active: false, snap: null, calm: false, api: null, failed: false };
+  var brightness = 1;
 
   function forgeStart() {
     if (forge.api || forge.failed) return;
@@ -119,6 +120,7 @@
       }
       forge.api = root.SF.forge3d;
       forge.api.setCalm(forge.calm);
+      forge.api.setBrightness(brightness);
       if (forge.snap) forge.api.update(forge.snap);
       forge.api.setActive(forge.active);
       stage.classList.add('ready');
@@ -134,7 +136,15 @@
   }
 
   root.SF = root.SF || {};
-  root.SF.scene3d = { preload: preload };
+  root.SF.scene3d = {
+    preload: preload,
+    // Exposure multiplier for both 3D scenes (Settings and the session's brightness control).
+    setBrightness: function (v) {
+      brightness = v;
+      if (forge.api) forge.api.setBrightness(v);
+      if (vault.api) vault.api.setBrightness(v);
+    }
+  };
   root.SF.vault = {
     setVisible: function (on) {
       vault.visible = on;

@@ -322,9 +322,9 @@
   }
 
   wire();
-  // Cinematics keep real time even if a slow PC drops frames (GSAP would otherwise
-  // stretch the timeline to "smooth" the lag, turning 7 seconds into a crawl).
-  if (root.gsap) root.gsap.ticker.lagSmoothing(0);
+  // A hitch (a shader compiling, a tab switch) pauses the animations instead of skipping
+  // ahead, so nothing is missed; ordinary slow frames still run in real time.
+  if (root.gsap) root.gsap.ticker.lagSmoothing(250, 33);
   root.SF = root.SF || {};
   root.SF.finale = { play: play, skip: skip, isActive: function () { return active; } };
 })(window);

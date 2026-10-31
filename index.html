@@ -223,6 +223,13 @@
         <button class="dock-btn primary is-active" id="ctl-toggle" aria-label="Start"><svg class="ico" aria-hidden="true"><use href="#i-play"/></svg><span class="lbl"><span id="ctl-toggle-text">Start</span><kbd>Space</kbd></span></button>
         <button class="dock-btn" id="ctl-ofs" aria-label="Open for Study"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg><span class="lbl">Open for Study<kbd>O</kbd></span></button>
         <button class="dock-btn" id="ctl-fs" aria-label="Full screen"><svg class="ico" aria-hidden="true"><use href="#i-expand"/></svg><span class="lbl"><span class="lbl-text">Full screen</span><kbd>F</kbd></span></button>
+        <div class="bright-wrap">
+          <button class="dock-btn" id="ctl-bright" aria-label="Brightness" aria-expanded="false" aria-controls="bright-pop"><svg class="ico" aria-hidden="true"><use href="#i-sun"/></svg><span class="lbl">Brightness<kbd>B</kbd></span></button>
+          <div class="bright-pop" id="bright-pop" hidden>
+            <label for="sess-bright">Brightness <output id="sess-bright-val">100%</output></label>
+            <input type="range" id="sess-bright" min="50" max="250" step="5" value="100">
+          </div>
+        </div>
         <button class="dock-btn danger" id="ctl-stop" aria-label="Stop"><svg class="ico" aria-hidden="true"><use href="#i-stop"/></svg><span class="lbl">Stop<kbd>Esc</kbd></span></button>
       </div>
     </section>
@@ -362,6 +369,7 @@
         <label class="toggle"><input type="checkbox" name="notifications"><span>Desktop notifications (when an Open for Study window or timer phase ends)</span></label>
         <h2 class="card-title settings-sub">Effects</h2>
         <label class="toggle"><input type="checkbox" name="fxCursor"><span>Interactive cursor and magnetic buttons</span></label>
+        <label class="field small bright-field"><span>3D brightness (forge &amp; Vault) <output id="set-bright-val">100%</output></span><input type="range" name="brightness" min="50" max="250" step="5"></label>
         <label class="toggle"><input type="checkbox" name="calmForge"><span>Calm forge — show the session forge as a still scene (saves battery on older laptops)</span></label>
         <label class="toggle"><input type="checkbox" name="fxRadio"><span>Forge Radio (ambient sounds and YouTube Music player)</span></label>
         <div class="row">
@@ -570,6 +578,7 @@
     <symbol id="i-stop" viewBox="0 0 24 24"><rect fill="currentColor" x="6" y="6" width="12" height="12" rx="2.5"/></symbol>
     <symbol id="i-prev" viewBox="0 0 24 24"><path fill="currentColor" d="M6 5h2.2v14H6zM19 5.8v12.4a.8.8 0 0 1-1.25.66L9.4 12.66a.8.8 0 0 1 0-1.32l8.35-6.2A.8.8 0 0 1 19 5.8z"/></symbol>
     <symbol id="i-next" viewBox="0 0 24 24"><path fill="currentColor" d="M15.8 5H18v14h-2.2zM5 5.8v12.4a.8.8 0 0 0 1.25.66l8.35-6.2a.8.8 0 0 0 0-1.32L6.25 5.14A.8.8 0 0 0 5 5.8z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2" fill="currentColor"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.55 1.55M17.15 17.15l1.55 1.55M5.3 18.7l1.55-1.55M17.15 6.85l1.55-1.55"/></symbol>
     <symbol id="i-note" viewBox="0 0 24 24"><path fill="currentColor" d="M9 17.5V6.2a1 1 0 0 1 .76-.97l9-2.2A1 1 0 0 1 20 4v11.5a3 3 0 1 1-2-2.83V8.3l-7 1.7v7.5a3 3 0 1 1-2-2.83z" transform="translate(-1 1)"/></symbol>
     <filter id="goo">
       <feGaussianBlur in="SourceGraphic" stdDeviation="9" result="blur"/>

@@ -29,6 +29,7 @@
         fxCursor: true,
         fxRadio: true,
         calmForge: false,
+        brightness: 100,
         radioSource: 'ambient',
         ambientTrack: 0,
         ambientVolume: 40,

@@ -110,6 +110,11 @@ function buildScene(stage) {
   // Studio rig that travels with the camera: area lights + a faint beam over the hero.
   rig = new THREE.Group();
   scene.add(rig);
+  for (let k = 0; k < LIGHT_POOL; k++) {
+    const l = new THREE.PointLight(0xff6a1a, 0, 1, 2);
+    pool.push(l);
+    scene.add(l);
+  }
   const area = (color, intensity, w, h, p, look) => {
     const l = new THREE.RectAreaLight(color, intensity, w, h);
     l.position.set(p[0], p[1], p[2]);
@@ -199,6 +204,45 @@ function makeIngot(i, state, journey) {
   return mesh;
 }
 
+// ---------- Warm lights ----------
+// three.js recompiles every material in the scene whenever the number of lights changes,
+// which froze the page for seconds when a forging added a crucible. So moulds and crucibles
+// place "anchors", and a fixed pool of point lights follows the brightest visible ones.
+const LIGHT_POOL = 3;
+const pool = [];
+const anchors = new Set();
+const anchorPos = new THREE.Vector3();
+
+function warmLight(intensity, distance) {
+  const a = new THREE.Object3D();
+  a.intensity = intensity;
+  a.distance = distance;
+  anchors.add(a);
+  return a;
+}
+
+function onStage(o) {
+  for (let p = o; p; p = p.parent) {
+    if (!p.visible) return false;
+    if (p === scene) return true;
+  }
+  return false;
+}
+
+function syncLights() {
+  const live = [];
+  anchors.forEach((a) => { if (a.intensity > 0.001 && onStage(a)) live.push(a); });
+  live.sort((x, y) => y.intensity - x.intensity);
+  pool.forEach((l, k) => {
+    const a = live[k];
+    if (!a) { l.intensity = 0; return; }
+    a.getWorldPosition(anchorPos);
+    l.position.copy(anchorPos);
+    l.intensity = a.intensity;
+    l.distance = a.distance;
+  });
+}
+
 // ---------- Moulds ----------
 let mouldGeo = null, sand = null;
 
@@ -222,7 +266,7 @@ function makeMould(i, fill, isNext) {
     const surface = new THREE.Mesh(roundedRectGeometry(c.width, c.depth, 0.05), moltenMaterial(metal.color));
     surface.position.y = c.level;
     g.add(surface);
-    const glow = new THREE.PointLight(0xff6a1a, 1.2 + fill * 1.2, 1.4, 2);
+    const glow = warmLight(1.2 + fill * 1.2, 1.4);
     glow.position.y = c.level + 0.12;
     g.add(glow);
     const embers = createEmbers(90, new THREE.Vector3(c.width * 0.9, 1.8, c.depth * 0.8));
@@ -235,6 +279,7 @@ function makeMould(i, fill, isNext) {
 
 function dispose(obj) {
   obj.traverse((o) => {
+    anchors.delete(o);
     if (o.geometry && o.geometry !== mouldGeo) o.geometry.dispose();
     const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
     mats.forEach((m) => m.dispose());
@@ -402,7 +447,8 @@ function adaptQuality(ms) {
   V.frame++;
   if (V.frame < 45) return;
   V.samples.push(ms);
-  if (V.samples.length < 60) return;
+  // During a forging, react within ~20 frames so a slow PC drops quality before the pour.
+  if (V.samples.length < (CIN.active ? 20 : 60)) return;
   const avg = V.samples.reduce((a, b) => a + b, 0) / V.samples.length;
   V.samples.length = 0;
   const next = avg > 26 ? (V.quality === 'high' ? 'medium' : V.quality === 'medium' ? 'low' : null) : null;
@@ -502,6 +548,7 @@ function frame() {
     V.shadowsDirty = false;
   }
 
+  syncLights();
   pipeline.composer.render(dt);
   updateLabels(false);
   adaptQuality(performance.now() - t0);
@@ -686,7 +733,7 @@ function crucibleGroup(color) {
   melt.position.y = 0.37;
   g.add(melt);
   // Short reach: it warms the crucible and mould without streaking across the polished slab.
-  const light = new THREE.PointLight(0xff6a1a, 1.8, 1.05, 2);
+  const light = warmLight(1.8, 1.05);
   light.position.y = 0.62;
   g.add(light);
   g.userData = { melt, light };
@@ -816,7 +863,7 @@ function updateCinematic(dt) {
  * three times while the hallmark presses in. ~10 s, skippable. On a first forging the
  * rewards (title, achievements) are granted only once the animation has finished.
  */
-function forgeCinematic(i, opts = {}) {
+async function forgeCinematic(i, opts = {}) {
   const gsap = window.gsap;
   if (CIN.active || !gsap) return;
   const state = V.state;
@@ -851,7 +898,7 @@ function forgeCinematic(i, opts = {}) {
   surface.visible = false;
   g.add(surface);
   CIN.surface = surface;
-  CIN.glow = new THREE.PointLight(0xff6a1a, 0, 0.85, 2);
+  CIN.glow = warmLight(0, 0.85);
   CIN.glow.position.y = 0.6;
   g.add(CIN.glow);
   const streamMat = moltenMaterial(metal.color);
@@ -866,7 +913,8 @@ function forgeCinematic(i, opts = {}) {
   CIN.hammer = hammerMesh();
   CIN.hammer.visible = false;
   g.add(CIN.hammer);
-  const ingot = makeIngot(i, state, { forgedAt: opts.replay ? V.status[i].forgedTs : Date.now() });
+  CIN.forgedAt = opts.replay ? V.status[i].forgedTs : Date.now();
+  const ingot = makeIngot(i, state, { forgedAt: CIN.forgedAt });
   ingot.visible = false;
   g.add(ingot);
   const mats = ingot.userData.mats;
@@ -876,6 +924,15 @@ function forgeCinematic(i, opts = {}) {
   mats.forEach((m) => { m.emissive = new THREE.Color(1, 0.32, 0.06); m.emissiveIntensity = 0; });
   CIN.fill.v = 0;
   CIN.cool.v = 0;
+
+  // Compile the new shaders and upload the hallmark textures before anything moves,
+  // so the pour starts smoothly instead of after a freeze.
+  mats.forEach((m) => [m.roughnessMap, m.normalMap].forEach((t) => t && renderer.initTexture(t)));
+  maps.forEach((t) => t && renderer.initTexture(t));
+  try { if (renderer.compileAsync) await renderer.compileAsync(scene, camera); } catch (e) { /* optional */ }
+  await nextFrame();
+  await nextFrame();
+  if (!CIN.active) return;
 
   // Camera: closer, slightly above, so the pour and the stamp read clearly.
   const camFrom = camPos.clone(), lookFrom = camLook.clone();
@@ -975,7 +1032,7 @@ function finishCinematic() {
   if (slot.item) slot.item.visible = true;
   setCameraTargets();
   V.shadowsDirty = true;
-  if (!CIN.replay && V.onForge) V.onForge(i); // grants the title & achievements, then the vault rebuilds
+  if (!CIN.replay && V.onForge) V.onForge(i, CIN.forgedAt); // grants the title & achievements, then the vault rebuilds
   wake();
 }
 
@@ -1087,6 +1144,12 @@ function update(state, first) {
   wake();
 }
 
+function setBrightness(v) {
+  if (!renderer) return;
+  renderer.toneMappingExposure = v;
+  if (V.ready) wake();
+}
+
 function setVisible(on) {
   V.visible = on;
   if (!on && V.inspect && V.ready) select(V.selected, { inspect: false });
@@ -1094,7 +1157,7 @@ function setVisible(on) {
 }
 
 SF.vault3d = {
-  mount, update, setVisible, forge: (i) => forgeCinematic(i),
+  mount, update, setVisible, setBrightness, forge: (i) => forgeCinematic(i),
   setHandlers: (h) => { if (h && h.onForge) V.onForge = h.onForge; },
   debug: () => ({ quality: V.quality, selected: V.selected, running: V.running, cinematic: CIN.active })
 };

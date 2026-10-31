@@ -828,6 +828,8 @@
     var st = state.settings;
     ['workMin', 'breakMin', 'examMin', 'streakMinMin', 'smithName'].forEach(function (k) { f.elements[k].value = st[k]; });
     ['strictExam', 'sound', 'notifications', 'fxCursor', 'fxRadio', 'calmForge'].forEach(function (k) { f.elements[k].checked = !!st[k]; });
+    f.elements.brightness.value = st.brightness || 100;
+    $('set-bright-val').textContent = (st.brightness || 100) + '%';
   }
 
   // ---------- Dialogs ----------

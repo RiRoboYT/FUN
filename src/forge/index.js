@@ -31,10 +31,10 @@ const F = {
   mounted: false, active: false, calm: false, running: false, dirty: true,
   snap: null, time: 0, acc: 0, lastIngots: null, cracks: -1,
   // Smoothed visual state, eased toward targets every frame.
-  temp: 20, coal: 0.15, exam: 0, rest: 0, legend: 0, quality: 1, slowFrames: 0, fade: 0.1
+  temp: 20, coal: 0.15, exam: 0, rest: 0, legend: 0, quality: 1, slowFrames: 0, fade: 0.1, bright: 1
 };
 let renderer, scene, camera, composer, bloom, haze, clock;
-let coals, flames, embers, sparks, steam, billet, billetMat, billetLight, hearthLight, examSpot, hammer, anvilTop, windowLight, hemi;
+let coals, flames, embers, sparks, steam, billet, billetMat, billetLight, hearthLight, examSpot, hammer, anvilTop, windowLight, hemi, roomLight;
 const strike = { t: -1, impactDone: false };
 const tmpV = new THREE.Vector3();
 const BARREL_POS = new THREE.Vector3(3.4, 0, -0.8);
@@ -492,13 +492,18 @@ function build(container) {
   FIN.spot.target.position.set(ANVIL_POS.x - 0.08, anvilTop, ANVIL_POS.z);
   scene.add(FIN.spot, FIN.spot.target);
   // A warm front fill for the reveal so the finished ingot reads clearly behind the card.
-  FIN.fill = new THREE.PointLight(0xffd8b0, 0, 5, 1.4);
+  FIN.fill = new THREE.PointLight(0xffe6c8, 0, 6, 1.2);
   FIN.fill.position.set(ANVIL_POS.x + 0.6, anvilTop + 0.9, ANVIL_POS.z + 1.3);
   scene.add(FIN.fill);
 
   // Lighting: the hearth (shadow-casting key), a cool window rim, faint ambient, exam spotlight.
-  hemi = new THREE.HemisphereLight(0x2a3040, 0x0d0907, 0.6);
+  hemi = new THREE.HemisphereLight(0x2a3040, 0x2a1d14, 0.9);
   scene.add(hemi);
+  // A broad warm room light from above the camera, so the forge reads even when it's cold.
+  roomLight = new THREE.RectAreaLight(0xffdcb8, 6.5, 8, 3);
+  roomLight.position.set(0.8, 3.8, 4.2);
+  roomLight.lookAt(0.8, 0.5, -0.8);
+  scene.add(roomLight);
   hearthLight = new THREE.SpotLight(0xff6a20, 20, 9, Math.PI / 3, 0.8, 2);
   hearthLight.position.set(HEARTH_POS.x + 0.2, COAL_TOP + 0.55, HEARTH_POS.z + 0.35);
   hearthLight.target.position.set(ANVIL_POS.x, 0.6, ANVIL_POS.z + 0.6);
@@ -516,7 +521,8 @@ function build(container) {
   windowLight.lookAt(ANVIL_POS.x, 1.0, ANVIL_POS.z);
   scene.add(windowLight);
   // Soft key on the anvil so it reads even when the forge is cold.
-  const anvilKey = new THREE.SpotLight(0xffe2c4, 22, 9, 0.42, 0.85, 1.8);
+  const anvilKey = new THREE.SpotLight(0xffe2c4, 30, 9, 0.42, 0.85, 1.8);
+  FIN.key = anvilKey;
   anvilKey.position.set(0.9, 3.6, 2.8);
   anvilKey.target.position.set(ANVIL_POS.x, 0.9, ANVIL_POS.z);
   scene.add(anvilKey, anvilKey.target);
@@ -675,14 +681,17 @@ function apply(dt, realDt) {
   // Exam: cold, stark — a single overhead spotlight, cooler room, less warmth.
   examSpot.intensity = F.exam * 70;
   windowLight.intensity = 4 + F.exam * 1.5 + F.rest * 1.5;
-  hemi.intensity = 0.6 + F.rest * 0.2;
-  hemi.color.setRGB(0.16 + F.exam * 0.05, 0.19 + F.exam * 0.06, 0.25 + F.exam * 0.12);
+  hemi.intensity = 2.4 + F.rest * 0.2;
+  hemi.color.setRGB(0.4 - F.exam * 0.12, 0.37 - F.exam * 0.06, 0.36 + F.exam * 0.04);
+  roomLight.intensity = 6.5 - F.exam * 2.5;
   // Ember-up: the room brightens over ~2 s when a session starts.
   F.fade += (1 - F.fade) * (reducedMotion || F.calm ? 1 : 1 - Math.pow(0.18, dt));
+  // Finale: bring up a bright showroom light on the anvil whatever the session's heat.
   const lift = FIN.lift.v;
-  renderer.toneMappingExposure = (1.0 - F.exam * 0.12 - F.rest * 0.08) * F.fade * (1 + lift * 0.55);
-  hemi.intensity += lift * 0.9;
-  if (FIN.fill) FIN.fill.intensity = lift * 9;
+  renderer.toneMappingExposure = (1.6 - F.exam * 0.12 - F.rest * 0.08) * F.fade * (1 + lift * 0.7) * F.bright;
+  hemi.intensity += lift * 2.6;
+  FIN.key.intensity = 30 + lift * 60;
+  if (FIN.fill) FIN.fill.intensity = lift * 22;
 
   // Heat haze over the coals (and over the billet when it's glowing).
   if (haze.enabled) {
@@ -807,7 +816,8 @@ function finale(kind, alloyId) {
   const tl = gsap.timeline({ onUpdate: () => { F.dirty = true; } });
   FIN.tl = tl;
   // Frame the anvil and the quench barrel on the right of the screen.
-  tl.to(cam.base, { x: 1.2, y: 1.7, z: 3.5, duration: 1.4, ease: 'power2.inOut' }, 0)
+  tl.to(FIN.lift, { v: 0.55, duration: 1.4, ease: 'power2.inOut' }, 0)
+    .to(cam.base, { x: 1.2, y: 1.7, z: 3.5, duration: 1.4, ease: 'power2.inOut' }, 0)
     .to(cam.look, { x: 2.75, y: 0.95, z: -0.3, duration: 1.4, ease: 'power2.inOut' }, 0);
 
   if (kind === 'fail') {
@@ -832,7 +842,7 @@ function finale(kind, alloyId) {
         if (SF.sound) SF.sound.play('crack');
       }, null, 1.75)
       .call(() => { FIN.quenched = true; }, null, 2.6)
-      .to(FIN.lift, { v: 0.45, duration: 1.2, ease: 'power2.out' }, 2.6);
+      .to(FIN.lift, { v: 0.8, duration: 1.2, ease: 'power2.out' }, 2.6);
     return true;
   }
 
@@ -845,6 +855,8 @@ function finale(kind, alloyId) {
   ing.visible = false;
   scene.add(ing);
   FIN.ingot = ing;
+  // Compile its shader in the background now; it only appears after the quench.
+  if (renderer.compileAsync) renderer.compileAsync(scene, camera).catch(() => {});
   FIN.kind = kind;
 
   tl.to(billet.position, { y: lift, duration: 0.5, ease: 'power2.out' }, 1.0)
@@ -865,8 +877,8 @@ function finale(kind, alloyId) {
     .to(ing.position, { x: ANVIL_POS.x - 0.1, z: ANVIL_POS.z + 0.02, duration: 0.6, ease: 'power2.inOut' }, 3.3)
     .to(ing.position, { y: anvilTop + 0.002, duration: 0.35, ease: 'bounce.out' }, 3.85)
     .to(ing.rotation, { y: 0.35, duration: 0.95, ease: 'power2.inOut' }, 3.3)
-    .to(FIN.spot, { intensity: kind === 'unfinished' ? 30 : 70, duration: 0.8, ease: 'power2.out' }, 3.8)
-    .to(FIN.lift, { v: kind === 'unfinished' ? 0.6 : 1, duration: 1.2, ease: 'power2.out' }, 3.6)
+    .to(FIN.spot, { intensity: kind === 'unfinished' ? 90 : 130, duration: 0.8, ease: 'power2.out' }, 3.8)
+    .to(FIN.lift, { v: 1, duration: 1.2, ease: 'power2.out' }, 3.6)
     .to(ing.rotation, { y: 0.35 + Math.PI * 0.35, duration: 6, ease: 'sine.inOut' }, 4.3);
   return true;
 }
@@ -962,4 +974,9 @@ function setCalm(on) {
   F.dirty = true;
 }
 
-SF.forge3d = { mount, update, setActive, setCalm, strike: startStrike, finale, finaleSkip };
+function setBrightness(v) {
+  F.bright = v;
+  F.dirty = true;
+}
+
+SF.forge3d = { mount, update, setActive, setCalm, setBrightness, strike: startStrike, finale, finaleSkip };

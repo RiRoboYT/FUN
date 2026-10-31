@@ -388,6 +388,7 @@
     else if (e.key === 'Escape') { e.preventDefault(); requestStop(); }
     else if (e.key === 'f' || e.key === 'F') { e.preventDefault(); toggleFullscreen(); }
     else if (e.key === 'o' || e.key === 'O') { e.preventDefault(); openOfsDialog(); }
+    else if (e.key === 'b' || e.key === 'B') { e.preventDefault(); toggleBrightPop(); }
   }
 
   // ---------- Main loop ----------
@@ -622,11 +623,11 @@
   }
 
   // ---------- Forging (v3): an alloy's rewards arrive once its forging animation ends ----------
-  function forgeAlloy(i) {
+  function forgeAlloy(i, ts) {
     var a = L.ALLOYS[i];
     if (!a) return;
     state.forged = state.forged || {};
-    if (!state.forged[a.id]) state.forged[a.id] = now();
+    if (!state.forged[a.id]) state.forged[a.id] = ts || now();
     // The new title is an upgrade, so wear it.
     var title = L.TITLES.filter(function (t) { return t.alloy === i; })[0];
     if (title) state.equippedTitle = title.id;
@@ -755,6 +756,7 @@
       st.fxCursor = f.fxCursor.checked;
       st.fxRadio = f.fxRadio.checked;
       st.calmForge = f.calmForge.checked;
+      st.brightness = parseInt(f.brightness.value, 10) || 100;
       applyEffects();
       sound.setEnabled(st.sound);
       if (st.notifications) maybeAskNotifications();
@@ -779,6 +781,20 @@
         });
     });
 
+    $('ctl-bright').addEventListener('click', function () { toggleBrightPop(); });
+    $('sess-bright').addEventListener('input', function () { setBrightness(+this.value, false); });
+    $('sess-bright').addEventListener('change', function () { setBrightness(+this.value, true); });
+    $('sess-bright').addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); toggleBrightPop(false); $('ctl-bright').focus(); }
+    });
+    doc.addEventListener('pointerdown', function (e) {
+      if (!$('bright-pop').hidden && !e.target.closest('.bright-wrap')) toggleBrightPop(false);
+    });
+    $('settings-form').elements.brightness.addEventListener('input', function () {
+      $('set-bright-val').textContent = this.value + '%';
+      root.SF.scene3d.setBrightness(this.value / 100); // live preview
+    });
+
     doc.addEventListener('keydown', onKey);
     doc.addEventListener('visibilitychange', onPresenceChange);
     root.addEventListener('blur', onPresenceChange);
@@ -800,6 +816,25 @@
     root.SF.fx.configure({ cursor: st.fxCursor });
     root.SF.radio.setEnabled(st.fxRadio);
     root.SF.forge.setCalm(st.calmForge);
+    setBrightness(st.brightness || 100, false);
+  }
+
+  // ---------- Brightness: one setting for both 3D scenes, also adjustable mid-session ----------
+  function setBrightness(pct, persist) {
+    pct = Math.max(50, Math.min(250, Math.round(pct)));
+    state.settings.brightness = pct;
+    root.SF.scene3d.setBrightness(pct / 100);
+    $('sess-bright').value = pct;
+    $('sess-bright-val').textContent = pct + '%';
+    if (persist) save();
+  }
+
+  function toggleBrightPop(open) {
+    var pop = $('bright-pop'), btn = $('ctl-bright');
+    if (open === undefined) open = pop.hidden;
+    pop.hidden = !open;
+    btn.setAttribute('aria-expanded', String(open));
+    if (open) $('sess-bright').focus();
   }
 
   function boot() {
