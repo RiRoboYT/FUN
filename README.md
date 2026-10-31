@@ -4,6 +4,29 @@ A focus timer for serious study sessions on a PC. You are a **Knowledge Smith**:
 
 Pure HTML + CSS + JavaScript. No accounts, no backend, no build step, no dependencies.
 
+## What's new in v3.2 — Quests & the Forge Shop
+
+- **Quests** (on the Forge page):
+  - **3 daily quests and 2 weekly quests**, such as "Study 60 minutes today", "Study Geography for 30 minutes", "Reach Blazing heat", "Study on 5 different days" or "3 distraction-free sessions".
+  - The subject quest picks the subject you've studied least this week.
+  - Progress fills in automatically from your timed sessions (logged study doesn't count).
+  - A pop-up tells you when a quest is done, and the Forge button shows a badge.
+  - **Claim** the reward to watch the Ingots fly into your wallet.
+  - Each day you can swap one daily quest you haven't finished (↻).
+  - Daily quests reset at midnight; weekly quests reset on Monday.
+- **Forge Shop** (new Shop tab): 21 items in four categories that restyle the 3D forge on your session screen:
+  - **Embers:** the colour of your coals, flames and sparks (Crimson, Blue Flame, Copper Green, Arcane Violet, White Gold).
+  - **Anvils:** Polished Steel, Bronze, Obsidian, Gold Leaf.
+  - **Hammers:** Ebony & Steel, Copper, Golden, and a glowing Mythril Hammer.
+  - **Workshops:** the room's light and mood (Moonlit Night, Golden Hour, Frost Forge, Ember Cave).
+- **How buying works:**
+  - Buying takes two clicks, so you can't buy by accident.
+  - The Ingots fly out of your wallet into the item, which is stamped **Forged!** with a burst of sparks and equipped straight away.
+  - Anything you own can be re-equipped at any time.
+- **Wallet:**
+  - The top bar now shows the Ingots you can spend.
+  - Spending never lowers your alloy progress, which still counts every Ingot you've ever forged (shown as "Ingots forged" on the dashboard).
+
 ## What's new in v3.1
 
 - **Smoother forging:** clicking **Forge** no longer freezes the page or skips the animation.

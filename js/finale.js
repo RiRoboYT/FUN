@@ -62,7 +62,7 @@
 
     var reached = L.alloyIndex({ totalIngots: state.totalIngots, longestStudiedMin: longest(state), bestStreak: (state.streak && state.streak.best) || 0 });
     var next = L.ALLOYS[reached + 1];
-    var bankAfter = state.totalIngots, bankBefore = bankAfter - total;
+    var bankAfter = root.SF.shop ? root.SF.shop.wallet(state) : state.totalIngots, bankBefore = Math.max(0, bankAfter - total);
     var progress = null;
     if (next) {
       var lo = L.ALLOYS[reached].ingots, span = next.ingots - lo;

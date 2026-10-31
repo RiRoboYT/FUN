@@ -97,6 +97,8 @@ function anvilGroup() {
   face.position.set(-0.06, 0.521, 0);
   g.add(face);
   g.userData.top = 0.521;
+  g.userData.steel = steel;
+  g.userData.face = face.material;
   return g;
 }
 
@@ -111,6 +113,8 @@ function hammerGroup(wood) {
   g.add(head, handle);
   g.traverse((o) => { o.castShadow = true; });
   g.visible = false;
+  g.userData.head = steel;
+  g.userData.handle = handle.material;
   return g;
 }
 
@@ -398,6 +402,7 @@ function build(container) {
   const wall = new THREE.Mesh(new THREE.PlaneGeometry(16, 7),
     new THREE.MeshStandardMaterial({ map: brick.map, normalMap: brick.normalMap, roughness: 0.92 }));
   wall.position.set(0, 3.5, -2.6);
+  SK.wall = wall.material;
   wall.receiveShadow = true;
   scene.add(wall);
 
@@ -432,6 +437,7 @@ function build(container) {
   stump.castShadow = stump.receiveShadow = true;
   scene.add(stump);
   const anvil = anvilGroup();
+  SK.anvil = anvil.userData;
   anvil.position.copy(ANVIL_POS);
   anvil.rotation.y = -0.18;
   scene.add(anvil);
@@ -662,7 +668,7 @@ function apply(dt, realDt) {
   billetLight.intensity = glow * 3.5;
 
   // Coals and flames: orange, shifting toward blue-white at Legendary; muted in exams.
-  const hot = new THREE.Color(1, 0.38, 0.07).lerp(new THREE.Color(0.55, 0.75, 1.0), F.legend * 0.7);
+  const hot = SK.hot.clone().lerp(new THREE.Color(0.55, 0.75, 1.0), F.legend * 0.7);
   const coalGlow = F.coal * (1 - F.exam * 0.45);
   coals.material.uniforms.uGlow.value = coalGlow;
   coals.material.uniforms.uHot.value.copy(hot);
@@ -680,9 +686,9 @@ function apply(dt, realDt) {
 
   // Exam: cold, stark — a single overhead spotlight, cooler room, less warmth.
   examSpot.intensity = F.exam * 70;
-  windowLight.intensity = 4 + F.exam * 1.5 + F.rest * 1.5;
+  windowLight.intensity = (4 + F.exam * 1.5 + F.rest * 1.5) * SK.windowMul;
   hemi.intensity = 2.4 + F.rest * 0.2;
-  hemi.color.setRGB(0.4 - F.exam * 0.12, 0.37 - F.exam * 0.06, 0.36 + F.exam * 0.04);
+  hemi.color.setRGB((0.4 - F.exam * 0.12) * SK.tint[0], (0.37 - F.exam * 0.06) * SK.tint[1], (0.36 + F.exam * 0.04) * SK.tint[2]);
   roomLight.intensity = 6.5 - F.exam * 2.5;
   // Ember-up: the room brightens over ~2 s when a session starts.
   F.fade += (1 - F.fade) * (reducedMotion || F.calm ? 1 : 1 - Math.pow(0.18, dt));
@@ -926,6 +932,7 @@ function mount(el) {
   container = el;
   build(el);
   F.mounted = true;
+  applySkins();
   new ResizeObserver(resize).observe(el);
   document.addEventListener('visibilitychange', updateRunning);
   resize();
@@ -974,9 +981,44 @@ function setCalm(on) {
   F.dirty = true;
 }
 
+// ---------- Shop skins (v3.2) ----------
+const SK = { hot: new THREE.Color(1, 0.38, 0.07), tint: [1, 1, 1], windowMul: 1, anvil: null, wall: null, want: null };
+
+function applySkins() {
+  const k = SK.want;
+  if (!k) return;
+  if (k.ember) SK.hot.setRGB(k.ember.hot[0], k.ember.hot[1], k.ember.hot[2]);
+  if (k.anvil && SK.anvil) {
+    Object.assign(SK.anvil.steel, { metalness: k.anvil.metalness, roughness: k.anvil.roughness, clearcoat: k.anvil.clearcoat });
+    SK.anvil.steel.color.setHex(k.anvil.color);
+    SK.anvil.face.color.setHex(k.anvil.face);
+  }
+  if (k.hammer && hammer) {
+    hammer.userData.head.color.setHex(k.hammer.head);
+    hammer.userData.head.emissive.setHex(k.hammer.glow || 0);
+    hammer.userData.head.emissiveIntensity = k.hammer.glow ? 1.6 : 0;
+    hammer.userData.handle.color.setHex(k.hammer.handle);
+  }
+  if (k.room && windowLight) {
+    windowLight.color.setHex(k.room.window);
+    roomLight.color.setHex(k.room.room);
+    SK.windowMul = k.room.windowMul;
+    SK.tint = k.room.tint;
+    if (SK.wall) SK.wall.color.setHex(k.room.wall);
+    scene.fog.color.setHex(k.room.fog);
+    scene.background.setHex(k.room.fog);
+  }
+  F.dirty = true;
+}
+
+function setSkins(k) {
+  SK.want = k;
+  if (F.mounted) applySkins();
+}
+
 function setBrightness(v) {
   F.bright = v;
   F.dirty = true;
 }
 
-SF.forge3d = { mount, update, setActive, setCalm, setBrightness, strike: startStrike, finale, finaleSkip };
+SF.forge3d = { mount, update, setActive, setCalm, setBrightness, setSkins, strike: startStrike, finale, finaleSkip };

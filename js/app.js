@@ -50,7 +50,7 @@
   // ---------- Views ----------
   function showView(name) {
     currentView = name;
-    ['dashboard', 'session', 'history', 'stats', 'hall', 'settings'].forEach(function (v) {
+    ['dashboard', 'session', 'history', 'stats', 'hall', 'shop', 'settings'].forEach(function (v) {
       $('view-' + v).hidden = v !== name;
     });
     doc.querySelectorAll('.nav-btn').forEach(function (b) {
@@ -67,7 +67,11 @@
   function renderView() {
     var t = now();
     ui.renderTop(state, t);
-    if (currentView === 'dashboard') ui.renderDashboard(state, launch, t, pickSubject);
+    if (currentView === 'dashboard') {
+      ui.renderDashboard(state, launch, t, pickSubject);
+      root.SF.shopUI.renderQuests(state, t, { claim: claimQuest, reroll: rerollQuest, rerender: renderView });
+    }
+    else if (currentView === 'shop') root.SF.shopUI.renderShop(state, { buy: buyItem, equip: equipItem });
     else if (currentView === 'history') ui.renderHistory(state, deleteEntry);
     else if (currentView === 'stats') {
       ui.renderCalendar(state, calMonth, calSelected, t, function (key) {
@@ -291,7 +295,7 @@
       var unlocked = result.newAchievements.slice();
       root.SF.finale.play({
         result: result, session: done, state: state,
-        onSettled: function () { unlocked.forEach(ui.achievementToast); },
+        onSettled: function () { unlocked.forEach(ui.achievementToast); questToasts(); },
         onClose: function (note, target) {
           if (note) {
             result.record.note = note;
@@ -309,6 +313,45 @@
     sound.play(done.failReason === 'strict' ? 'fail' : 'reward');
     ui.showReward(result, done);
     result.newAchievements.forEach(ui.achievementToast);
+    questToasts();
+  }
+
+  // ---------- Quests & shop (v3.2) ----------
+  function questToasts() {
+    var fresh = root.SF.quests.freshlyDone(state, now());
+    if (!fresh.length) return;
+    save();
+    fresh.forEach(function (q) {
+      ui.achievementToast({ icon: q.icon, label: q.kind === 'weekly' ? 'Weekly quest complete' : 'Quest complete',
+        title: q.title, reward: '+' + q.reward + ' Ingots · claim it on the Forge page', quest: true });
+    });
+    ui.renderTop(state, now());
+  }
+
+  function claimQuest(key) {
+    var got = root.SF.quests.claim(state, key, now());
+    if (!got) return 0;
+    save();
+    setTimeout(grantAchievements, 1400); // after the claim animation lands
+    return got;
+  }
+
+  function rerollQuest(slot) {
+    var ok = root.SF.quests.reroll(state, slot, now());
+    if (ok) save();
+    return ok;
+  }
+
+  function buyItem(id) {
+    var r = root.SF.shop.buy(state, id, now());
+    if (r.ok) { save(); root.SF.forge.setSkins(root.SF.shop.skins(state)); }
+    return r;
+  }
+
+  function equipItem(id) {
+    var ok = root.SF.shop.equip(state, id);
+    if (ok) { save(); root.SF.forge.setSkins(root.SF.shop.skins(state)); }
+    return ok;
   }
 
   // ---------- Return classification ----------
@@ -817,6 +860,7 @@
     root.SF.radio.setEnabled(st.fxRadio);
     root.SF.forge.setCalm(st.calmForge);
     setBrightness(st.brightness || 100, false);
+    root.SF.forge.setSkins(root.SF.shop.skins(state));
   }
 
   // ---------- Brightness: one setting for both 3D scenes, also adjustable mid-session ----------

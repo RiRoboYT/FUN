@@ -104,7 +104,7 @@
 
   // ---------- Forge (session screen) ----------
   var forge = { active: false, snap: null, calm: false, api: null, failed: false };
-  var brightness = 1;
+  var brightness = 1, skins = null;
 
   function forgeStart() {
     if (forge.api || forge.failed) return;
@@ -121,6 +121,7 @@
       forge.api = root.SF.forge3d;
       forge.api.setCalm(forge.calm);
       forge.api.setBrightness(brightness);
+      if (skins) forge.api.setSkins(skins);
       if (forge.snap) forge.api.update(forge.snap);
       forge.api.setActive(forge.active);
       stage.classList.add('ready');
@@ -176,6 +177,10 @@
     },
     finale: function (kind, alloyId) {
       return forge.api && !forge.calm ? forge.api.finale(kind, alloyId) : false;
+    },
+    setSkins: function (k) {
+      skins = k;
+      if (forge.api) forge.api.setSkins(k);
     },
     finaleSkip: function () {
       if (forge.api) forge.api.finaleSkip();

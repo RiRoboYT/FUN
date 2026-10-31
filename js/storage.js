@@ -36,6 +36,8 @@
         ytUrl: '',
         smithName: ''
       },
+      quests: { claimed: {}, rerolls: {}, notified: {} },
+      shop: { owned: {}, equipped: {}, spent: 0 },
       active: null
     };
   }

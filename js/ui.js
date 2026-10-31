@@ -65,7 +65,11 @@
   // ---------- Top bar ----------
   function renderTop(state, now) {
     $('top-title').textContent = currentTitle(state);
-    $('top-ingots').textContent = state.totalIngots;
+    $('top-ingots').textContent = root.SF.shop.wallet(state);
+    var claimable = root.SF.quests.claimableCount(state, now);
+    var badge = $('nav-quest-badge');
+    badge.hidden = !claimable;
+    badge.textContent = claimable;
     $('top-streak').textContent = L.currentStreak(state.streak, L.dayKey(now));
     $('top-score').textContent = L.forgeScore(state);
   }
@@ -796,16 +800,29 @@
     var id = achQueue.shift();
     if (!id) { achBusy = false; return; }
     achBusy = true;
-    var a = L.achievementById(id);
-    var tier = L.TIERS[a.tier];
-    var node = el('div', { class: 'xa tier-' + a.tier, role: 'status', 'aria-live': 'polite' }, [
-      el('div', { class: 'xa-orb' }, [el('span', { class: 'xa-icon', text: a.icon })]),
-      el('div', { class: 'xa-body' }, [
-        el('small', { text: a.secret ? 'Secret achievement unlocked' : 'Achievement unlocked' }),
-        el('b', { text: tier.points + 'G – ' + a.name }),
-        el('span', { class: 'xa-reward', text: '+' + tier.ingots + ' Ingots' })
-      ])
-    ]);
+    var node;
+    if (typeof id === 'object') {
+      // A custom pop-up in the same style (quests).
+      node = el('div', { class: 'xa tier-quest', role: 'status', 'aria-live': 'polite' }, [
+        el('div', { class: 'xa-orb' }, [el('span', { class: 'xa-icon', text: id.icon })]),
+        el('div', { class: 'xa-body' }, [
+          el('small', { text: id.label }),
+          el('b', { text: id.title }),
+          el('span', { class: 'xa-reward', text: id.reward })
+        ])
+      ]);
+    } else {
+      var a = L.achievementById(id);
+      var tier = L.TIERS[a.tier];
+      node = el('div', { class: 'xa tier-' + a.tier, role: 'status', 'aria-live': 'polite' }, [
+        el('div', { class: 'xa-orb' }, [el('span', { class: 'xa-icon', text: a.icon })]),
+        el('div', { class: 'xa-body' }, [
+          el('small', { text: a.secret ? 'Secret achievement unlocked' : 'Achievement unlocked' }),
+          el('b', { text: tier.points + 'G – ' + a.name }),
+          el('span', { class: 'xa-reward', text: '+' + tier.ingots + ' Ingots' })
+        ])
+      ]);
+    }
     topHost().appendChild(node);
     root.SF.sound.play('achievement');
     void node.offsetWidth;

@@ -1,5 +1,5 @@
 /* StudyForge service worker — cache-first so the app works offline after the first load. */
-var CACHE = 'studyforge-v3-1';
+var CACHE = 'studyforge-v3-2';
 var ASSETS = [
   './',
   'index.html',
@@ -14,6 +14,9 @@ var ASSETS = [
   'vendor/gsap.min.js',
   'js/scene3d.js',
   'js/finale.js',
+  'js/quests.js',
+  'js/shop.js',
+  'js/shopui.js',
   'vendor/studyforge3d.bundle.js',
   'fonts/InterTight-var.woff2',
   'fonts/Fraunces-var.woff2',
